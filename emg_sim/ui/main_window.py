@@ -131,8 +131,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # green sphere = the game's reach target (fixed until reached), NOT the
         # control target (which tracks the arm's commanded destination / tip).
         self.scene.update_state(eng.control.arm, eng.game.target_xyz, eng.tip)
-        self.wave_left.update_state(eng.waveform(0), eng.activation_history(0))
-        self.wave_right.update_state(eng.waveform(1), eng.activation_history(1))
+        self.wave_left.update_state(eng.waveform(0), eng.amp_history(0),
+                                    eng.norm.baseline[0], eng.norm.scale[0], eng.norm.peak[0])
+        self.wave_right.update_state(eng.waveform(1), eng.amp_history(1),
+                                     eng.norm.baseline[1], eng.norm.scale[1], eng.norm.peak[1])
 
         # Marker = the ACTIVATION the target needs — the inverse of the arm-side
         # mapping, which scales activation by 1/reach_full_activation (see

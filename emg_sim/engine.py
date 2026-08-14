@@ -40,10 +40,10 @@ class Engine:
         self.t = 0.0
         self.attract = False
 
-        # per-sample history of the normalized activation (the value that actually
-        # drives control/judging) for overlay on the waveform
+        # per-sample history of the smoothed amplitude (amp = the envelope the
+        # baseline/scale act on) for the waveform's amplitude-domain overlay
         disp_n = max(1, int(round(self.cfg.signal.display_sec * self.cfg.signal.sample_rate)))
-        self._act_hist = [deque([0.0] * disp_n, maxlen=disp_n) for _ in range(2)]
+        self._amp_hist = [deque([0.0] * disp_n, maxlen=disp_n) for _ in range(2)]
 
     # -- main loop ---------------------------------------------------------
     def step(self, dt: float):
@@ -57,8 +57,8 @@ class Engine:
 
         k = raw.shape[0] if raw.size else 0
         if k:
-            self._act_hist[0].extend([float(self.activation[0])] * k)
-            self._act_hist[1].extend([float(self.activation[1])] * k)
+            self._amp_hist[0].extend([float(self.amp[0])] * k)
+            self._amp_hist[1].extend([float(self.amp[1])] * k)
 
         self.q, self.tip, self.target = self.control.update(
             float(self.activation[0]), float(self.activation[1])
@@ -97,5 +97,5 @@ class Engine:
     def waveform(self, ch: int) -> np.ndarray:
         return self.dsp.waveform(ch)
 
-    def activation_history(self, ch: int) -> np.ndarray:
-        return np.fromiter(self._act_hist[ch], float)
+    def amp_history(self, ch: int) -> np.ndarray:
+        return np.fromiter(self._amp_hist[ch], float)

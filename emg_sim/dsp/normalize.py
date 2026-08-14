@@ -62,6 +62,11 @@ class Normalizer:
     def capturing(self) -> bool:
         return self._cap is not None
 
+    @property
+    def peak(self) -> np.ndarray:
+        """Per-channel high-water mark of (amp − baseline); the scale follows it."""
+        return self._peak
+
     def reset_adaptation(self) -> None:
         self._peak = np.zeros(2)
         self.scale = np.full(2, float(self.cfg.fallback_scale))
