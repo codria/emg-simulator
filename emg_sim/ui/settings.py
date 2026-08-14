@@ -73,8 +73,8 @@ class _SatCurve(QtWidgets.QWidget):
         w, h = self.width(), self.height()
         x0, y0, x1, y1 = 26, h - 16, w - 10, 20        # plot area (y0 bottom, y1 top)
         xmax = 2.0
-        p.fillRect(self.rect(), QtGui.QColor("#ffffff"))
-        p.setPen(QtGui.QPen(QtGui.QColor("#c8ccd4"), 1))
+        p.fillRect(self.rect(), QtGui.QColor("#12141a"))         # black background
+        p.setPen(QtGui.QPen(QtGui.QColor("#d7dbe4"), 1))         # white frame
         p.drawRect(x0, y1, x1 - x0, y0 - y1)
 
         def sx(v):
@@ -83,13 +83,13 @@ class _SatCurve(QtWidgets.QWidget):
         def sy(v):
             return y0 + v * (y1 - y0)                   # v in 0..1
 
-        p.setPen(QtGui.QPen(QtGui.QColor("#e2e6ec"), 1, QtCore.Qt.PenStyle.DashLine))
+        p.setPen(QtGui.QPen(QtGui.QColor("#3b3f4b"), 1, QtCore.Qt.PenStyle.DashLine))  # dim grid
         for g in (0.5, 1.0):
             p.drawLine(x0, int(sy(g)), x1, int(sy(g)))
         xf = int(sx(1.0))
         p.drawLine(xf, y0, xf, y1)                      # x = 1 (満力比)
 
-        p.setPen(QtGui.QColor("#8a93a1"))
+        p.setPen(QtGui.QColor("#d0d4de"))                        # white labels
         f = p.font()
         f.setPointSize(7)
         p.setFont(f)
@@ -102,10 +102,10 @@ class _SatCurve(QtWidgets.QWidget):
             xv = xmax * i / 64
             pt = QtCore.QPointF(sx(xv), sy(math.tanh(self.gain * xv)))
             path.moveTo(pt) if i == 0 else path.lineTo(pt)
-        p.setPen(QtGui.QPen(QtGui.QColor("#0e7aa8"), 2))
+        p.setPen(QtGui.QPen(QtGui.QColor("#4d9fff"), 2))         # blue curve
         p.drawPath(path)
 
-        p.setPen(QtGui.QColor("#5b6472"))
+        p.setPen(QtGui.QColor("#c2c7d2"))                        # white title
         p.drawText(x0, y1 - 6, f"効きカーブ  tanh({self.gain:.2f}·x)   横=力み比 / 縦=活性度")
 
 
