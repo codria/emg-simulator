@@ -8,5 +8,6 @@ pythonnet) plugs into the same interface later.
 
 from .source import InputSource
 from .dummy import DummySource
+from .bioradio import BioRadioSource, discover  # pythonnet import is deferred to start()
 
-__all__ = ["InputSource", "DummySource"]
+__all__ = ["InputSource", "DummySource", "BioRadioSource", "discover"]

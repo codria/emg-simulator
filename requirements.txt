@@ -14,5 +14,7 @@ pytest            # tests
 # PySide6          # Qt binding for pyqtgraph (LGPL; PyQt6 also works)
 # trimesh          # only if the curved arm ships as an OBJ/STL mesh
 
-# --- acquisition (later): BioRadio .NET SDK via pythonnet (Windows only) ---
-# pythonnet
+# --- acquisition: BioRadio .NET SDK via pythonnet (Windows only) ---
+# Imported lazily in emg_sim/acquisition/bioradio.py (start()), so the rest of
+# the app + tests run without it. Official BioRadio Python example pins 3.0.5.
+pythonnet==3.0.5  ; sys_platform == "win32"

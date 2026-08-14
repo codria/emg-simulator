@@ -7,7 +7,8 @@
 ## 環境・資材
 
 - **conda env**: `env_emg-simulator`（Python 3.13）。依存は `requirements.txt`
-  （現段階は numpy/scipy/pytest のみ、描画・取得系はコメントアウトで後回し）
+  （numpy/scipy/pytest ＋ 取得の `pythonnet==3.0.5`(win32・`bioradio.py` で遅延 import)。
+  描画系は env に導入済みだが requirements ではコメントのまま）
 - **GitHub**: `https://codria@github.com/codria/emg-simulator.git`（username 埋め込みで
   GCM prompt 回避、user global CLAUDE.md 参照）
 - **C++ 参照資産**: `D:\github\KinectArmSimulator\KinectArmSimulator`
@@ -20,7 +21,26 @@
 | layer | 状態 |
 |---|---|
 | kinematics（アームモデル + IK） | **完了・C++ と数値検証済み** |
-| acquisition / signal_processing / transform / rendering / game | 未着手 |
+| signal_processing / transform / rendering / game | **完了**（ダミー入力で全通し、実機非依存） |
+| acquisition（BioRadio） | **`BioRadioSource` 実装済み**（pythonnet, 実機なしで SDK ロード〜discover を検証）。**live・FW1.0 は実機待ち** |
+
+## acquisition（BioRadio 実機取得）
+
+- SDK は GLNeuroTech 公式が**無料配布**（アカウント不要）:
+  `https://www.glneurotech.com/products/bioradio/support/software-downloads/`
+  →「BioRadio SDK for Windows」ZIP。中に `API/BioRadioSDK.dll`（**AnyCPU/.NET4.5**）と
+  **公式 Python サンプル**（`Python/Example files/`, pythonnet 3.0.5）が同梱。
+- 本命は `emg_sim/acquisition/bioradio.py` の `BioRadioSource(InputSource)`。
+  経路（公式サンプル準拠・実機なしで検証済み）:
+  `clr.AddReference(dll)` → `GLNeuroTech.Devices.BioRadio.BioRadioDeviceManager`
+  → `DiscoverBluetoothDevices()` → `GetBluetoothDevice(mac)` →
+  `BioPotentialSignals`(=EMG, `SamplesPerSecond`) → `StartAcquisition()` →
+  `[ch].GetScaledValueArray()`(V単位・drain) → `StopAcquisition/Disconnect`。
+- pythonnet は **`netfx` ランタイム**（.NET Framework 4.5）。DLL は AnyCPU なので x64 Python でOK。
+- 使い方: `Engine(source=BioRadioSource(dll_path, mac_id=...))`。DLL は repo に含めず各自 DL してパス指定。
+- **前提**: 2ch EMG とサンプルレートを **BioCapture（または SDK `SetConfiguration`）で事前設定**。
+  未設定だと `BioPotentialSignals` が空。
+- 残る不確定: **live ストリーミング挙動・FW1.0 互換**のみ（実機＋BioCapture で FW 確認）。
 
 ## kinematics 移植の要点（`emg_sim/kinematics/arm.py`）
 
