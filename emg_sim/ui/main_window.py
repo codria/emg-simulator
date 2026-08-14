@@ -14,6 +14,7 @@ from __future__ import annotations
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from . import theme
 from .scene3d import Scene3D
 from .bars import BarWidget
 from .waveform import WaveformPanel
@@ -36,8 +37,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._target_age = 0.0
 
         left_is_theta = cfg.control.left_axis == "theta"
-        self.bar_left = BarWidget("L", "向き θ" if left_is_theta else "伸び r", cfg)
-        self.bar_right = BarWidget("R", "伸び r" if left_is_theta else "向き θ", cfg)
+        self.bar_left = BarWidget("L", "向き θ" if left_is_theta else "伸び r", cfg, theme.L_COLOR)
+        self.bar_right = BarWidget("R", "伸び r" if left_is_theta else "向き θ", cfg, theme.R_COLOR)
         self.scene = Scene3D(cfg)
         self.waves = WaveformPanel(cfg)
         self.sfx = Sfx(cfg.ui.sfx_reach, cfg.ui.sfx_volume) if cfg.ui.sfx_enabled else Sfx(None)

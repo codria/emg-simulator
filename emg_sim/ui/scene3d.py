@@ -51,12 +51,19 @@ _BRIGHT = ShaderProgram("brightarm", [
     """),
 ])
 
-_C_TARGET = (0.30, 0.90, 0.42, 0.9)
-_C_REGION = (0.4, 1.0, 0.5, 1.0)
-_C_TIP = (0.55, 0.85, 1.0, 1.0)
-_C_FAN = (90 / 255, 160 / 255, 220 / 255, 1.0)
-_C_FAN_FILL = (0.30, 0.55, 0.9, 0.16)
-_C_FRONT = (1.0, 0.82, 0.30, 1.0)
+from . import theme
+
+
+def _rgb(c, a=1.0):
+    return (c[0] / 255.0, c[1] / 255.0, c[2] / 255.0, a)
+
+
+_C_TARGET = _rgb(theme.TARGET, 0.9)
+_C_REGION = _rgb(theme.TARGET, 1.0)
+_C_TIP = _rgb(theme.TIP, 1.0)
+_C_FAN = _rgb(theme.FAN, 1.0)
+_C_FAN_FILL = _rgb(theme.FAN, 0.16)
+_C_FRONT = _rgb(theme.FRONT, 1.0)
 
 
 class Scene3D(gl.GLViewWidget):
@@ -99,7 +106,7 @@ class Scene3D(gl.GLViewWidget):
         for it in (self._arc_in, self._arc_out, self._edge_lo, self._edge_hi, self._front):
             self.addItem(it)
         try:
-            self._front_label = gl.GLTextItem(text="FRONT", color=(255, 210, 80, 255))
+            self._front_label = gl.GLTextItem(text="FRONT", color=(*theme.FRONT, 255))
             self.addItem(self._front_label)
         except Exception:
             self._front_label = None

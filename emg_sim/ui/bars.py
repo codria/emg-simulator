@@ -14,11 +14,12 @@ _DISPLAY_MAX = 1.15  # bar top = a bit above 1.0 so soft-sat over-range shows
 
 
 class BarWidget(QtWidgets.QWidget):
-    def __init__(self, side: str, role: str, cfg):
+    def __init__(self, side: str, role: str, cfg, color=(120, 200, 255)):
         super().__init__()
         self.side = side          # "L" / "R"
         self.role = role          # "向き(θ)" / "伸び(r)"
         self.cfg = cfg
+        self.color = color        # channel hue (RGB 0-255): R=cyan, L=yellow
         self.value = 0.0          # activation
         self.target = None        # target activation [0,1] or None
         self.marker_alpha = 0.0
@@ -52,12 +53,12 @@ class BarWidget(QtWidgets.QWidget):
         p.setBrush(QtGui.QColor(45, 48, 58))
         p.drawRoundedRect(QtCore.QRectF(bx, by, bw, bh), 6, 6)
 
-        # fill
+        # fill — single-hue gradient (dark → channel colour)
+        r, g, b = self.color
         fill_top = y_of(self.value)
         grad = QtGui.QLinearGradient(0, by + bh, 0, by)
-        grad.setColorAt(0.0, QtGui.QColor(70, 150, 240))
-        grad.setColorAt(0.75, QtGui.QColor(120, 200, 255))
-        grad.setColorAt(1.0, QtGui.QColor(255, 170, 90))
+        grad.setColorAt(0.0, QtGui.QColor(int(r * 0.33), int(g * 0.33), int(b * 0.38)))
+        grad.setColorAt(1.0, QtGui.QColor(r, g, b))
         p.setBrush(grad)
         p.drawRoundedRect(QtCore.QRectF(bx, fill_top, bw, by + bh - fill_top), 6, 6)
 
@@ -90,14 +91,14 @@ class BarWidget(QtWidgets.QWidget):
             p.setPen(QtGui.QPen(QtGui.QColor(150, 255, 170, a), 2))
             p.drawLine(int(bx), int(yc), int(bx + bw), int(yc))
 
-        # top: side label + current value
-        p.setPen(QtGui.QColor(235, 235, 240))
+        # top: side label + current value (tinted with the channel colour)
+        chan = QtGui.QColor(r, g, b)
+        p.setPen(chan)
         f.setPointSize(11)
         f.setBold(True)
         p.setFont(f)
         p.drawText(QtCore.QRectF(0, 2, w, 18), QtCore.Qt.AlignmentFlag.AlignCenter, self.side)
         f.setPointSize(12)
-        p.setPen(QtGui.QColor(150, 220, 255))
         p.setFont(f)
         p.drawText(QtCore.QRectF(0, 22, w, 20), QtCore.Qt.AlignmentFlag.AlignCenter,
                    f"{self.value:.2f}")

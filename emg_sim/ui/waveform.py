@@ -11,6 +11,12 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6 import QtWidgets
 
+from . import theme
+
+
+def _dim(c):
+    return tuple(int(x * 0.55) for x in c)
+
 
 class WaveformPanel(QtWidgets.QWidget):
     def __init__(self, cfg):
@@ -22,11 +28,11 @@ class WaveformPanel(QtWidgets.QWidget):
 
         self.p_right = self._make_plot("Right Arm EMG")
         self.p_left = self._make_plot("Left Arm EMG")
-        # raw (dim) + activation = control/judging value (bright)
-        self.raw_right = self.p_right.plot(pen=pg.mkPen((90, 150, 205), width=1), name="raw")
-        self.act_right = self.p_right.plot(pen=pg.mkPen((130, 235, 255), width=2), name="control value")
-        self.raw_left = self.p_left.plot(pen=pg.mkPen((200, 140, 70), width=1), name="raw")
-        self.act_left = self.p_left.plot(pen=pg.mkPen((255, 200, 110), width=2), name="control value")
+        # raw (dim) + activation = control/judging value (bright), per-channel hue
+        self.raw_right = self.p_right.plot(pen=pg.mkPen(_dim(theme.R_COLOR), width=1), name="raw")
+        self.act_right = self.p_right.plot(pen=pg.mkPen(theme.R_COLOR, width=2), name="control value")
+        self.raw_left = self.p_left.plot(pen=pg.mkPen(_dim(theme.L_COLOR), width=1), name="raw")
+        self.act_left = self.p_left.plot(pen=pg.mkPen(theme.L_COLOR, width=2), name="control value")
         lay.addWidget(self.p_right, 1)
         lay.addWidget(self.p_left, 1)
 
