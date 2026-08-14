@@ -160,7 +160,10 @@ class Scene3D(gl.GLViewWidget):
         self.target = gl.GLMeshItem(meshdata=tmd, smooth=True, color=_C_TARGET,
                                     shader=_BRIGHT, glOptions="translucent")
         self.addItem(self.target)
-        self._region = gl.GLLinePlotItem(width=2.0, antialias=True, color=_C_REGION)
+        # depth-tested (unlike the default additive lines) so the arm occludes the
+        # reach ring when it passes in front — it's a world marker, not an overlay
+        self._region = gl.GLLinePlotItem(width=2.0, antialias=True, color=_C_REGION,
+                                         glOptions="translucent")
         self.addItem(self._region)
 
         pmd = gl.MeshData.sphere(rows=8, cols=8, radius=0.018)
