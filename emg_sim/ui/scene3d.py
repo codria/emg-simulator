@@ -152,9 +152,11 @@ class Scene3D(gl.GLViewWidget):
         self._edge_hi = gl.GLLinePlotItem(width=2.0, antialias=True, color=_C_FAN)
         self._front = gl.GLLinePlotItem(width=3.5, antialias=True, color=_C_FRONT, mode="lines")
         for it in (self._arc_in, self._arc_out, self._edge_lo, self._edge_hi, self._front):
+            it.setDepthValue(20)         # draw over the floor shadow (depthValue 5)
             self.addItem(it)
         try:
             self._front_label = gl.GLTextItem(text="FRONT", color=(*theme.FRONT, 255))
+            self._front_label.setDepthValue(20)
             self.addItem(self._front_label)
         except Exception:
             self._front_label = None
@@ -164,6 +166,7 @@ class Scene3D(gl.GLViewWidget):
         self._theta_arc = gl.GLLinePlotItem(width=3.0, antialias=True, color=_C_TH)
         self._theta_ref = gl.GLLinePlotItem(width=1.2, antialias=True, color=_C_TH_REF)
         for it in (self._theta_ref, self._theta_arc, self._r_line):
+            it.setDepthValue(22)         # draw over the floor shadow + fan
             self.addItem(it)
         ital = QtGui.QFont("Times New Roman", 16)
         ital.setItalic(True)
@@ -171,6 +174,8 @@ class Scene3D(gl.GLViewWidget):
         try:
             self._r_label = gl.GLTextItem(text="r", color=(*theme.R_COLOR, 255), font=ital)
             self._theta_label = gl.GLTextItem(text="θ", color=(*theme.L_COLOR, 255), font=ital)
+            self._r_label.setDepthValue(22)
+            self._theta_label.setDepthValue(22)
             self.addItem(self._r_label)
             self.addItem(self._theta_label)
         except Exception:
@@ -205,6 +210,7 @@ class Scene3D(gl.GLViewWidget):
         # reach ring when it passes in front — it's a world marker, not an overlay
         self._region = gl.GLLinePlotItem(width=2.0, antialias=True, color=_C_REGION,
                                          glOptions="translucent")
+        self._region.setDepthValue(20)
         self.addItem(self._region)
 
         pmd = gl.MeshData.sphere(rows=8, cols=8, radius=0.018)
