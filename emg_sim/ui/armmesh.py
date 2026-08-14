@@ -7,8 +7,9 @@ local transforms. This ports the geometry generators and `build()`'s part list
 so PyQtGraph can draw the same arm; each part becomes one GLMeshItem whose
 transform is `Ts[parent+1] @ local_xform` every frame.
 
-Geometry is emitted as triangle soup (Ntri*3, 3); the scene builds MeshData with
-consecutive faces and flat shading, so per-vertex normals aren't needed.
+Geometry is emitted as triangle soup (Ntri*3, 3) plus matching per-vertex smooth
+normals (analytic: radial on tube walls, axial on caps); the scene builds MeshData
+with consecutive faces and shades smooth, so the low-poly tubes look round.
 """
 
 from __future__ import annotations
@@ -44,9 +45,12 @@ def _Ry(a: float) -> np.ndarray:
 
 
 # -- geometry generators (positions only; triangle soup) --------------------
-def cylinder_tris(radius: float, length: float, seg: int = 48) -> np.ndarray:
+def cylinder_tris(radius: float, length: float, seg: int = 48):
+    """Triangle soup + matching smooth normals — radial on the side, axial on the
+    caps — so the low-poly tube shades round. Returns (verts, normals), both (N,3)."""
     hl = length * 0.5
-    tris = []
+    tris, norms = [], []
+    up, dn = [0, 0, 1.0], [0, 0, -1.0]
     for i in range(seg):
         a0 = i / seg * _TWO_PI
         a1 = (i + 1) / seg * _TWO_PI
@@ -56,11 +60,14 @@ def cylinder_tris(radius: float, length: float, seg: int = 48) -> np.ndarray:
         p10 = [radius * c0, radius * s0, hl]
         p11 = [radius * c1, radius * s1, hl]
         ct, cb = [0, 0, hl], [0, 0, -hl]
+        n0, n1 = [c0, s0, 0.0], [c1, s1, 0.0]          # outward radial (side faces)
         tris += [p00, p01, p11, p00, p11, p10, ct, p10, p11, cb, p01, p00]
-    return np.array(tris, dtype=float)
+        norms += [n0, n1, n1, n0, n1, n0, up, up, up, dn, dn, dn]
+    return np.array(tris, float), np.array(norms, float)
 
 
-def curved_bone_tris(p0, c1, c2, p3, radius, seg_along=48, seg_around=24) -> np.ndarray:
+def curved_bone_tris(p0, c1, c2, p3, radius, seg_along=48, seg_around=24):
+    """Swept cubic-Bézier tube + smooth radial normals. Returns (verts, normals)."""
     p0, c1, c2, p3 = (np.asarray(v, float) for v in (p0, c1, c2, p3))
 
     def bez(t):
@@ -72,6 +79,7 @@ def curved_bone_tris(p0, c1, c2, p3, radius, seg_along=48, seg_around=24) -> np.
         return 3 * u * u * (c1 - p0) + 6 * u * t * (c2 - c1) + 3 * t * t * (p3 - c2)
 
     rings = np.zeros((seg_along + 1, seg_around, 3))
+    ring_n = np.zeros((seg_along + 1, seg_around, 3))
     prev_right = np.array([1.0, 0.0, 0.0])
     init = False
     for i in range(seg_along + 1):
@@ -91,43 +99,55 @@ def curved_bone_tris(p0, c1, c2, p3, radius, seg_along=48, seg_around=24) -> np.
         up2 = up2 / np.linalg.norm(up2)
         for k in range(seg_around):
             a = k / seg_around * _TWO_PI
-            rings[i, k] = c + (np.cos(a) * right + np.sin(a) * up2) * radius
+            rad = np.cos(a) * right + np.sin(a) * up2       # outward unit normal
+            rings[i, k] = c + rad * radius
+            ring_n[i, k] = rad
 
-    tris = []
+    tris, norms = [], []
     for i in range(seg_along):
         for k in range(seg_around):
             kn = (k + 1) % seg_around
             a, b = rings[i, k], rings[i, kn]
             cc, dd = rings[i + 1, kn], rings[i + 1, k]
+            na, nb = ring_n[i, k], ring_n[i, kn]
+            ncc, ndd = ring_n[i + 1, kn], ring_n[i + 1, k]
             tris += [a, b, cc, a, cc, dd]
+            norms += [na, nb, ncc, na, ncc, ndd]
+    n_start = -tan(0.0) / np.linalg.norm(tan(0.0))          # start cap: axial
     c_start = bez(0.0)
     for k in range(seg_around):
         kn = (k + 1) % seg_around
         tris += [c_start, rings[0, kn], rings[0, k]]
+        norms += [n_start, n_start, n_start]
+    n_end = tan(1.0) / np.linalg.norm(tan(1.0))             # end cap: axial
     c_end = bez(1.0)
     for k in range(seg_around):
         kn = (k + 1) % seg_around
         tris += [c_end, rings[seg_along, k], rings[seg_along, kn]]
-    return np.array(tris, dtype=float)
+        norms += [n_end, n_end, n_end]
+    return np.array(tris, float), np.array(norms, float)
 
 
 # -- part list (port of Renderer::build) ------------------------------------
 def build_parts(d: ArmDimensions = DEFAULT_DIMS) -> list[dict]:
-    """Return parts as dicts: {parent, verts (N,3), xform (4,4), color}."""
+    """Return parts as dicts: {parent, verts (N,3), normals (N,3), xform, color}."""
     parts: list[dict] = []
 
-    def add(parent, verts, xform, color):
-        parts.append({"parent": parent, "verts": verts, "xform": xform, "color": color})
+    def add(parent, verts, normals, xform, color):
+        parts.append({"parent": parent, "verts": verts, "normals": normals,
+                      "xform": xform, "color": color})
 
     def tube(parent, radius, length, xform):
-        add(parent, cylinder_tris(radius, length), xform, C_SHELL)
+        v, n = cylinder_tris(radius, length)
+        add(parent, v, n, xform, C_SHELL)
 
     # hub drum at every joint
     axes = [Axis.Z, Axis.Y, Axis.Y, Axis.Z, Axis.Y, Axis.Z]
     for i, ax in enumerate(axes):
         hx = _Rx(-_HALF_PI) if ax == Axis.Y else np.eye(4)
         hub_r = (d.joint_d_j1 if i == 0 else d.joint_d_j4 if i == 3 else d.joint_d) / 2.0
-        add(i, cylinder_tris(hub_r, d.joint_w, 64), hx, C_HUB)
+        v, n = cylinder_tris(hub_r, d.joint_w, 64)
+        add(i, v, n, hx, C_HUB)
 
     # base tube (-Z) and tube2 (+Z) on J1
     tube(0, d.tube_d / 2, d.t_base_len, _T(0, 0, -(d.joint_w / 2 + d.t_base_len / 2)))
@@ -138,7 +158,8 @@ def build_parts(d: ArmDimensions = DEFAULT_DIMS) -> list[dict]:
     # J2: tube4, upper-arm bone, tube5
     ty = -d.joint_w / 2 - d.t4_len / 2
     tube(1, d.big_tube_d / 2, d.t4_len, _T(0, ty, 0) @ _Rx(-_HALF_PI))
-    add(1, cylinder_tris(d.bone_d / 2, d.upper_arm_len), _T(0, ty, d.upper_arm_len / 2), C_SHELL)
+    ua_v, ua_n = cylinder_tris(d.bone_d / 2, d.upper_arm_len)
+    add(1, ua_v, ua_n, _T(0, ty, d.upper_arm_len / 2), C_SHELL)
     tube(1, d.big_tube_d / 2, d.t5_len, _T(0, ty, d.upper_arm_len) @ _Rx(-_HALF_PI))
 
     # J3: tube6, tube7
@@ -152,14 +173,14 @@ def build_parts(d: ArmDimensions = DEFAULT_DIMS) -> list[dict]:
     # J4: curved forearm bone, tube8
     fey = -d.A / 2 - d.joint_w - d.bone_d / 2
     z0 = d.joint_w / 2
-    bone = curved_bone_tris(
+    bone_v, bone_n = curved_bone_tris(
         (0, 0, z0),
         (0, 0, z0 + d.forearm_len * 0.40),
         (0, fey, z0 + d.forearm_len * 0.60),
         (0, fey, z0 + d.forearm_len),
         d.bone_d / 2,
     )
-    add(3, bone, np.eye(4), C_SHELL)
+    add(3, bone_v, bone_n, np.eye(4), C_SHELL)
     ftz = d.joint_w / 2 + d.forearm_len
     tube(3, d.big_tube_d / 2, d.t8_len, _T(0, fey, ftz) @ _Rx(-_HALF_PI))
 
@@ -169,5 +190,6 @@ def build_parts(d: ArmDimensions = DEFAULT_DIMS) -> list[dict]:
     tube(4, d.tube_d / 2, d.t10_len, _T(0, t9y, d.t10_len / 2))
 
     # J6: flange
-    add(5, cylinder_tris(0.024, 0.012, 32), _T(0, 0, d.joint_w / 2 + 0.006), C_FLANGE)
+    fl_v, fl_n = cylinder_tris(0.024, 0.012, 32)
+    add(5, fl_v, fl_n, _T(0, 0, d.joint_w / 2 + 0.006), C_FLANGE)
     return parts

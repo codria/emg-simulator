@@ -146,10 +146,11 @@ class Scene3D(gl.GLViewWidget):
         self.addItem(floor)
 
         # pedestal: floor up to the arm base (top face at z=0)
-        ped_v = armmesh.cylinder_tris(0.09, 0.05, 48)
-        ped = gl.GLMeshItem(
-            meshdata=gl.MeshData(vertexes=ped_v, faces=np.arange(len(ped_v)).reshape(-1, 3)),
-            smooth=False, color=(0.34, 0.36, 0.42, 1.0), shader=_BRIGHT, glOptions="opaque")
+        ped_v, ped_n = armmesh.cylinder_tris(0.09, 0.05, 48)
+        ped_md = gl.MeshData(vertexes=ped_v, faces=np.arange(len(ped_v)).reshape(-1, 3))
+        ped_md._vertexNormals = ped_n
+        ped = gl.GLMeshItem(meshdata=ped_md, smooth=True,
+                            color=(0.34, 0.36, 0.42, 1.0), shader=_BRIGHT, glOptions="opaque")
         ped.translate(0, 0, z_floor + 0.025)  # spans -0.05..0.0
         self.addItem(ped)
 
@@ -201,7 +202,9 @@ class Scene3D(gl.GLViewWidget):
         for part in armmesh.build_parts():
             v = part["verts"]
             faces = np.arange(len(v)).reshape(-1, 3)
-            item = gl.GLMeshItem(meshdata=gl.MeshData(vertexes=v, faces=faces), smooth=False,
+            md = gl.MeshData(vertexes=v, faces=faces)
+            md._vertexNormals = part["normals"]   # analytic smooth normals → round tubes
+            item = gl.GLMeshItem(meshdata=md, smooth=True,
                                  color=(*part["color"], 1.0), shader=_BRIGHT, glOptions="opaque")
             self.addItem(item)
             self.parts.append((item, part["parent"], part["xform"]))
