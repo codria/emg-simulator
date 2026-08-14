@@ -146,17 +146,24 @@ class MainWindow(QtWidgets.QMainWindow):
         r_t, th_t = eng.game.target_rt
         m_r = (r_t - cfg.control.r_min) / max(1e-6, cfg.control.r_max - cfg.control.r_min)
         m_th = (th_t - cfg.control.theta_min) / max(1e-6, cfg.control.theta_max - cfg.control.theta_min)
+        # Reach tolerance as a per-axis fraction so the bar band matches the 3D
+        # circle (radius reach_dist): the r axis scales by the r-range, but the θ
+        # axis scales by arc length — reach_dist subtends reach_dist/r_t radians at
+        # the target's distance, so the θ band shrinks as the target moves outward.
+        band_r = cfg.game.reach_dist / max(1e-6, cfg.control.r_max - cfg.control.r_min)
+        band_th = (cfg.game.reach_dist / max(1e-6, r_t)) / \
+            max(1e-6, cfg.control.theta_max - cfg.control.theta_min)
         if cfg.ui.marker_enabled and not eng.attract:
             alpha = float(np.clip((self._target_age - cfg.ui.marker_delay_sec) / 1.0, 0.0, 1.0))
         else:
             alpha = 0.0
         hold = eng.game.hold_frac
         if cfg.control.left_axis == "theta":
-            self.bar_left.set_state(a_eff[0], m_th, alpha, hold)
-            self.bar_right.set_state(a_eff[1], m_r, alpha, hold)
+            self.bar_left.set_state(a_eff[0], m_th, alpha, hold, band_th)
+            self.bar_right.set_state(a_eff[1], m_r, alpha, hold, band_r)
         else:
-            self.bar_left.set_state(a_eff[0], m_r, alpha, hold)
-            self.bar_right.set_state(a_eff[1], m_th, alpha, hold)
+            self.bar_left.set_state(a_eff[0], m_r, alpha, hold, band_r)
+            self.bar_right.set_state(a_eff[1], m_th, alpha, hold, band_th)
 
         g = eng.game
         parts = [f"到達 {g.reached}/{cfg.game.targets_per_round}", f"時間 {g.round_time:4.1f}s"]

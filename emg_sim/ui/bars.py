@@ -25,14 +25,16 @@ class BarWidget(QtWidgets.QWidget):
         self.target = None        # target activation [0,1] or None
         self.marker_alpha = 0.0
         self.hold_frac = 0.0
+        self.band = None          # reach tolerance in fraction units (axis-specific)
         self.setFixedWidth(104)
         self.setMinimumHeight(240)
 
-    def set_state(self, value, target, marker_alpha, hold_frac=0.0) -> None:
+    def set_state(self, value, target, marker_alpha, hold_frac=0.0, band=None) -> None:
         self.value = float(value)
         self.target = None if target is None else float(target)
         self.marker_alpha = float(marker_alpha)
         self.hold_frac = float(hold_frac)
+        self.band = None if band is None else float(band)
         self.update()
 
     def paintEvent(self, _e) -> None:
@@ -79,10 +81,13 @@ class BarWidget(QtWidgets.QWidget):
                            QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter,
                            f"{a:.1f}")
 
-        # target marker band (delayed fade-in)
+        # target marker band (delayed fade-in). Height = the axis-specific reach
+        # tolerance the caller passes (r vs θ differ); fall back to the r-range form.
         if self.target is not None and self.marker_alpha > 0.01:
-            band = max(0.03, self.cfg.game.reach_dist /
-                       max(1e-6, self.cfg.control.r_max - self.cfg.control.r_min))
+            band = self.band if self.band is not None else (
+                self.cfg.game.reach_dist /
+                max(1e-6, self.cfg.control.r_max - self.cfg.control.r_min))
+            band = max(0.03, band)
             yc = y_of(self.target)
             hh = bh * band / _DISPLAY_MAX
             a = int(200 * self.marker_alpha)
