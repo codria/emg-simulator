@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- emg-simulator project-specific ---
+# C++ reference build artifacts (ref_cases.json IS committed; the build dir is not)
+tools/cpp_ref/build/
+*.exe
+
+# conda/venv (env is external: conda env_emg-simulator)
+.venv/

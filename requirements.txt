@@ -1,0 +1,18 @@
+# emg-simulator dependencies, grouped by layer (see docs/emg_robotarm_exhibit_design.md §8).
+#
+# Current milestone (kinematics port + signal processing) needs only the first
+# group. Rendering / acquisition deps are listed for when those layers are built.
+
+# --- kinematics + signal processing (needed now) ---
+numpy
+scipy
+pytest            # tests
+
+# --- rendering (later): PyQtGraph GL scene ---
+# pyqtgraph
+# PyOpenGL
+# PySide6          # Qt binding for pyqtgraph (LGPL; PyQt6 also works)
+# trimesh          # only if the curved arm ships as an OBJ/STL mesh
+
+# --- acquisition (later): BioRadio .NET SDK via pythonnet (Windows only) ---
+# pythonnet
