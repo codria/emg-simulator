@@ -1,0 +1,166 @@
+"""Main window: composes the 3D scene, EMG bars and waveform panel, runs the
+per-frame loop (engine.step), and wires manual input (keyboard + sliders).
+
+Layout (per the display decisions):
+    [ left bar ] [ 3D scene ] [ waveforms (top=R, bottom=L) + drive sliders ] [ right bar ]
+
+Controls (development / dummy input):
+    hold F / J  → flex left / right arm      B → capture baseline (力を抜いて)
+    sliders     → set left / right drive      R → reset session   D → toggle attract/demo
+"""
+
+from __future__ import annotations
+
+import numpy as np
+from PySide6 import QtCore, QtGui, QtWidgets
+
+from .scene3d import Scene3D
+from .bars import BarWidget
+from .waveform import WaveformPanel
+
+_RAMP_PER_SEC = 3.0
+_KEY_LEFT = "F"
+_KEY_RIGHT = "J"
+
+
+class MainWindow(QtWidgets.QMainWindow):
+    def __init__(self, engine, cfg):
+        super().__init__()
+        self.engine = engine
+        self.cfg = cfg
+        self.setWindowTitle("EMG ロボットアーム 到達ゲーム (MVP)")
+
+        self._keys: set[str] = set()
+        self._key_drive = np.zeros(2)
+        self._target_age = 0.0
+
+        left_is_theta = cfg.control.left_axis == "theta"
+        self.bar_left = BarWidget("L", "向き θ" if left_is_theta else "伸び r", cfg)
+        self.bar_right = BarWidget("R", "伸び r" if left_is_theta else "向き θ", cfg)
+        self.scene = Scene3D(cfg)
+        self.waves = WaveformPanel(cfg)
+
+        self.sl_left = QtWidgets.QSlider(QtCore.Qt.Orientation.Vertical)
+        self.sl_right = QtWidgets.QSlider(QtCore.Qt.Orientation.Vertical)
+        for s in (self.sl_left, self.sl_right):
+            s.setRange(0, 100)
+            s.valueChanged.connect(lambda _v: self.engine.notify_user_input())
+
+        self._build_layout()
+
+        self.status = QtWidgets.QLabel()
+        self.statusBar().addWidget(self.status)
+
+        self.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
+        self._elapsed = QtCore.QElapsedTimer()
+        self._elapsed.start()
+        self._timer = QtCore.QTimer(self)
+        self._timer.timeout.connect(self._on_timer)
+        self._timer.start(16)
+
+    def _build_layout(self) -> None:
+        central = QtWidgets.QWidget()
+        h = QtWidgets.QHBoxLayout(central)
+        h.setContentsMargins(6, 6, 6, 6)
+        h.setSpacing(8)
+        h.addWidget(self.bar_left)
+        h.addWidget(self.scene, 1)
+
+        right = QtWidgets.QVBoxLayout()
+        right.addWidget(self.waves, 1)
+        srow = QtWidgets.QHBoxLayout()
+        srow.addWidget(QtWidgets.QLabel("L"))
+        srow.addWidget(self.sl_left)
+        srow.addWidget(self.sl_right)
+        srow.addWidget(QtWidgets.QLabel("R"))
+        sbox = QtWidgets.QGroupBox("drive (dummy)")
+        sbox.setLayout(srow)
+        sbox.setMaximumHeight(150)
+        right.addWidget(sbox)
+        rc = QtWidgets.QWidget()
+        rc.setLayout(right)
+        rc.setFixedWidth(330)
+        h.addWidget(rc)
+        h.addWidget(self.bar_right)
+        self.setCentralWidget(central)
+
+    # -- loop --------------------------------------------------------------
+    def _on_timer(self) -> None:
+        dt = min(self._elapsed.restart() / 1000.0, 0.05)
+        self.tick(dt)
+
+    def tick(self, dt: float) -> None:
+        if not self.engine.attract:
+            for ch, key in enumerate((_KEY_LEFT, _KEY_RIGHT)):
+                if key in self._keys:
+                    self._key_drive[ch] = min(1.0, self._key_drive[ch] + _RAMP_PER_SEC * dt)
+                else:
+                    self._key_drive[ch] = max(0.0, self._key_drive[ch] - _RAMP_PER_SEC * dt)
+            sl = np.array([self.sl_left.value() / 100.0, self.sl_right.value() / 100.0])
+            drive = np.clip(np.maximum(sl, self._key_drive), 0.0, 1.0)
+            if hasattr(self.engine.source, "set_drive"):
+                self.engine.source.set_drive(drive[0], drive[1])
+
+        ev = self.engine.step(dt)
+        self._target_age = 0.0 if ev in ("reached", "round_complete") else self._target_age + dt
+        self._refresh()
+
+    def _refresh(self) -> None:
+        eng, cfg = self.engine, self.cfg
+        self.scene.update_state(eng.control.arm, eng.target, eng.tip)
+        self.waves.update_state(eng.waveform(0), eng.waveform(1))
+
+        r_t, th_t = eng.game.target_rt
+        a_r = (r_t - cfg.control.r_min) / max(1e-6, cfg.control.r_max - cfg.control.r_min)
+        a_th = (th_t - cfg.control.theta_min) / max(1e-6, cfg.control.theta_max - cfg.control.theta_min)
+        if cfg.ui.marker_enabled and not eng.attract:
+            alpha = float(np.clip((self._target_age - cfg.ui.marker_delay_sec) / 1.0, 0.0, 1.0))
+        else:
+            alpha = 0.0
+        hold = eng.game.hold_frac
+        if cfg.control.left_axis == "theta":
+            self.bar_left.set_state(eng.activation[0], a_th, alpha, hold)
+            self.bar_right.set_state(eng.activation[1], a_r, alpha, hold)
+        else:
+            self.bar_left.set_state(eng.activation[0], a_r, alpha, hold)
+            self.bar_right.set_state(eng.activation[1], a_th, alpha, hold)
+
+        g = eng.game
+        parts = [f"到達 {g.reached}/{cfg.game.targets_per_round}", f"時間 {g.round_time:4.1f}s"]
+        if g.last_round_time is not None:
+            parts.append(f"前回 {g.last_round_time:4.1f}s")
+        if eng.norm.capturing:
+            parts.append("● ベースライン取得中 (力を抜いて)")
+        if eng.attract:
+            parts.append("● ATTRACT / デモ (何か操作で解除)")
+        else:
+            parts.append("F/J=力む  B=較正  R=リセット  D=デモ")
+        self.status.setText("     ".join(parts))
+
+    # -- input -------------------------------------------------------------
+    def keyPressEvent(self, e: QtGui.QKeyEvent) -> None:
+        if e.isAutoRepeat():
+            return
+        k = e.text().upper()
+        if k:
+            self._keys.add(k)
+        if k == "B":
+            self._start_baseline()
+        elif k == "R":
+            self.engine.reset_session()
+            self.engine.notify_user_input()
+        elif k == "D":
+            self.engine.set_attract(not self.engine.attract)
+        else:
+            self.engine.notify_user_input()
+
+    def keyReleaseEvent(self, e: QtGui.QKeyEvent) -> None:
+        if e.isAutoRepeat():
+            return
+        self._keys.discard(e.text().upper())
+
+    def _start_baseline(self) -> None:
+        self.engine.start_baseline()
+        QtCore.QTimer.singleShot(
+            int(self.cfg.normalize.baseline_sec * 1000), self.engine.finish_baseline
+        )

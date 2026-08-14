@@ -224,3 +224,9 @@ tools/cpp_ref/build/
 
 # conda/venv (env is external: conda env_emg-simulator)
 .venv/
+
+# 効果音ラボ等の音声素材は「素材ファイル再配布」回避のためコミットしない
+# (入手元は README / docs/decisions.md 記載。アプリからはローカルの assets/sfx/ を参照)
+assets/sfx/
+*.mp3
+*.wav

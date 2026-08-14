@@ -10,16 +10,21 @@ Design and rationale: [`docs/emg_robotarm_exhibit_design.md`](docs/emg_robotarm_
 
 | Layer (design §8) | Role | Status |
 |---|---|---|
-| acquisition | BioRadio .NET SDK via pythonnet (worker thread) | not started |
-| signal_processing | band-pass / notch / rectify / RMS / normalize / soft-sat | not started |
-| transform | L/R → `(r, θ)` → cartesian target | not started |
+| acquisition | input-source abstraction + dummy (kbd/slider/auto); BioRadio later | **MVP** (dummy) |
+| signal_processing | rectify / RMS / EMA (+ normalize §5); band-pass/notch later | **MVP** |
+| transform | activation → `(r, θ)` → cartesian target (position control) | **MVP** |
 | **kinematics** | 6-DOF arm model + damped-least-squares IK | **done, verified vs C++** |
-| rendering | PyQtGraph GL scene + EMG bars | not started |
-| game | target spawn / reach detection / score | not started |
+| rendering | PyQtGraph GL scene + EMG bars + waveforms | **MVP** |
+| game | target spawn / dwell reach detection / 5-reach score / attract | **MVP** |
+
+A full end-to-end **MVP vertical slice** runs on the dummy input source (no
+hardware): dummy EMG → RMS/normalize → position-control mapping → IK →
+3D scene + bars + waveforms + reaching game. Remaining for the real exhibit:
+the BioRadio acquisition (pythonnet) and band-pass/notch filtering.
 
 `kinematics` is ported from the C++ reference `KinectArmSimulator/src/window3/arm.cpp`
 (itself a port of a Three.js implementation) and verified numerically against it
-(see below).
+(see below). Decisions are logged in [`docs/decisions.md`](docs/decisions.md).
 
 ## Setup
 
@@ -30,9 +35,24 @@ conda activate env_emg-simulator
 pip install -r requirements.txt
 ```
 
-The current milestone needs only `numpy` / `scipy` / `pytest`; rendering and
-acquisition dependencies are commented out in `requirements.txt` until those
-layers are built.
+The MVP needs `numpy` / `scipy` / `pytest` plus the rendering stack
+(`PySide6` / `pyqtgraph` / `PyOpenGL`). The BioRadio acquisition dependency
+(`pythonnet`) is deferred.
+
+## Run the app (MVP)
+
+```bash
+python -m emg_sim.app            # interactive
+python -m emg_sim.app --auto     # start in attract / demo mode
+```
+
+Controls: hold **F** / **J** to flex the left / right arm (or use the drive
+sliders); **B** captures the baseline (力を抜いて); **R** resets the session;
+**D** toggles attract/demo. A headless screenshot for CI/preview:
+
+```bash
+python -m emg_sim.app --screenshot out.png --frames 240
+```
 
 ## Tests
 
