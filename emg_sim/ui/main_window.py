@@ -40,8 +40,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.bar_left = BarWidget("Left", "向き θ" if left_is_theta else "伸び r", cfg, theme.L_COLOR)
         self.bar_right = BarWidget("Right", "伸び r" if left_is_theta else "向き θ", cfg, theme.R_COLOR)
         self.scene = Scene3D(cfg)
-        self.wave_left = WaveformPlot("Left Arm EMG", theme.L_COLOR)
-        self.wave_right = WaveformPlot("Right Arm EMG", theme.R_COLOR)
+        self.wave_left = WaveformPlot("Left Arm EMG", theme.L_COLOR, cfg)
+        self.wave_right = WaveformPlot("Right Arm EMG", theme.R_COLOR, cfg)
         self.sfx = Sfx(cfg.ui.sfx_reach, cfg.ui.sfx_volume) if cfg.ui.sfx_enabled else Sfx(None)
 
         self.sl_left = QtWidgets.QSlider(QtCore.Qt.Orientation.Vertical)

@@ -44,7 +44,7 @@ class ControlConfig:
     # bias below, the arm folds in near the base and straightens out far, so the
     # WHOLE physical range is usable (no implementation-imposed inner limit).
     r_min: float = 0.15
-    r_max: float = 0.72
+    r_max: float = 0.70
     theta_min: float = 0.0
     theta_max: float = math.pi
     z_plane: float = 0.045         # operation plane at the shoulder (Tube3 centre)
