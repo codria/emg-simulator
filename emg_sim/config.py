@@ -91,8 +91,9 @@ class UIConfig:
     marker_enabled: bool = True    # target marker on the bars (position control)
     marker_delay_sec: float = 3.0  # delayed fade-in
     show_waveform: bool = True     # raw waveforms on the right (top=R, bottom=L)
-    sfx_enabled: bool = True       # reach-success sound effect
-    sfx_reach: str = "assets/sfx/reach.wav"  # optional; no-op if missing
+    sfx_enabled: bool = True       # sound effects (reach + zone-enter)
+    sfx_reach: str = "assets/sfx/reach.wav"  # reach-success; no-op if missing
+    sfx_enter: str = "assets/sfx/enter.wav"  # subtle click when the tip enters the target zone
     sfx_volume: float = 0.7
 
 

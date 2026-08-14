@@ -43,6 +43,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.wave_left = WaveformPlot("Left Arm EMG", theme.L_COLOR, cfg)
         self.wave_right = WaveformPlot("Right Arm EMG", theme.R_COLOR, cfg)
         self.sfx = Sfx(cfg.ui.sfx_reach, cfg.ui.sfx_volume) if cfg.ui.sfx_enabled else Sfx(None)
+        self.sfx_enter = Sfx(cfg.ui.sfx_enter, cfg.ui.sfx_volume) if cfg.ui.sfx_enabled else Sfx(None)
+        self._prev_hold_frac = 0.0     # rising edge of hold_frac = tip entered the zone
 
         self.sl_left = QtWidgets.QSlider(QtCore.Qt.Orientation.Vertical)
         self.sl_right = QtWidgets.QSlider(QtCore.Qt.Orientation.Vertical)
@@ -125,6 +127,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.sfx.play()
         else:
             self._target_age += dt
+        # rising edge of hold_frac (0 → >0) = the tip just entered the target zone
+        hf = self.engine.game.hold_frac
+        if hf > 1e-6 and self._prev_hold_frac <= 1e-6:
+            self.sfx_enter.play()
+        self._prev_hold_frac = hf
         self._refresh(dt, hit)
 
     def _refresh(self, dt: float = 0.0, hit_flash: bool = False) -> None:
