@@ -21,6 +21,7 @@ def polar_to_xyz(control_cfg, r: float, theta: float) -> np.ndarray:
 class PolarController:
     def __init__(self, cfg):
         self.cfg = cfg.control
+        self.norm = cfg.normalize        # for sat_gain (full-effort activation cap)
         self.arm = make_standard_arm()
         self.r = self.cfg.r_min
         self.theta = self.cfg.theta_min
@@ -48,9 +49,19 @@ class PolarController:
             return a_right, a_left      # left → θ, right → r
         return a_left, a_right          # left → r, right → θ
 
+    def full_ref(self) -> float:
+        """Activation that maps to full reach (r_max / θ_max). Capped by the
+        activation a full contraction can actually produce — tanh(sat_gain) under
+        soft saturation — so lowering sat_gain still reaches the extremes instead
+        of falling short of r_max."""
+        full = self.cfg.reach_full_activation
+        if self.norm.soft_sat:
+            full = min(full, float(np.tanh(self.norm.sat_gain)))
+        return max(1e-3, full)
+
     def target_from_activation(self, a_left: float, a_right: float) -> tuple[float, float]:
         a_r, a_theta = self._split(a_left, a_right)
-        full = max(1e-3, self.cfg.reach_full_activation)  # full effort → full range
+        full = self.full_ref()          # full effort → full range (tracks sat_gain)
         a_r = float(np.clip(a_r / full, 0.0, 1.0))
         a_theta = float(np.clip(a_theta / full, 0.0, 1.0))
         r = self.cfg.r_min + a_r * (self.cfg.r_max - self.cfg.r_min)

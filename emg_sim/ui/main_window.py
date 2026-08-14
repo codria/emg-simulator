@@ -137,11 +137,11 @@ class MainWindow(QtWidgets.QMainWindow):
                                      eng.norm.baseline[1], eng.norm.scale[1], eng.norm.peak[1])
 
         # Marker = the ACTIVATION the target needs — the inverse of the arm-side
-        # mapping, which scales activation by 1/reach_full_activation (see
-        # PolarController.target_from_activation). Without this ×full the marker
-        # sits 1/full too high, so matching the bar to it overshoots θ/r by ~11%.
+        # mapping, which scales activation by 1/full_ref (see PolarController).
+        # Without this ×full the marker sits 1/full too high, so matching the bar
+        # to it overshoots θ/r. full_ref tracks sat_gain, so the marker stays right.
         r_t, th_t = eng.game.target_rt
-        full = max(1e-3, cfg.control.reach_full_activation)
+        full = eng.control.full_ref()
         a_r = full * (r_t - cfg.control.r_min) / max(1e-6, cfg.control.r_max - cfg.control.r_min)
         a_th = full * (th_t - cfg.control.theta_min) / max(1e-6, cfg.control.theta_max - cfg.control.theta_min)
         if cfg.ui.marker_enabled and not eng.attract:

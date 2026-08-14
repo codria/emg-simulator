@@ -120,6 +120,18 @@ def test_mapping_extremes():
     assert th == pytest.approx(cfg.control.theta_max)  # left → θ
 
 
+def test_mapping_full_reach_tracks_sat_gain():
+    # lowering sat_gain caps full-effort activation at tanh(sat_gain); full_ref must
+    # track it so full effort still hits r_max/θ_max instead of falling short.
+    cfg = Config()
+    cfg.normalize.sat_gain = 1.0                      # tanh(1.0) ≈ 0.76 < reach_full 0.9
+    ctrl = PolarController(cfg)
+    a_full = float(np.tanh(cfg.normalize.sat_gain))   # max activation a full contraction reaches
+    r, th = ctrl.target_from_activation(a_full, a_full)
+    assert r == pytest.approx(cfg.control.r_max)
+    assert th == pytest.approx(cfg.control.theta_max)
+
+
 def test_mapping_target_reachable_and_tracks():
     cfg = Config()
     ctrl = PolarController(cfg)

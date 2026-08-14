@@ -53,10 +53,10 @@ class ControlConfig:
     theta_max: float = math.pi
     z_plane: float = 0.045         # operation plane at the shoulder (Tube3 centre)
     left_axis: str = "theta"       # left arm → θ; right arm → r (swap: "r")
-    # Activation counted as "full effort" → maps to r_max/θ_max. Because the soft
-    # saturation caps full-effort activation below 1.0 (~tanh(sat_gain)), without
-    # this the arm never reaches r_max (and never visibly extends). Rescale so
-    # full effort uses the whole reach; control below stays smooth.
+    # Activation counted as "full effort" → maps to r_max/θ_max. Soft saturation
+    # caps full-effort activation below 1.0 (~tanh(sat_gain)); without this the arm
+    # never reaches r_max. PolarController.full_ref() also caps this by tanh(sat_gain)
+    # at runtime, so lowering sat_gain still reaches the extremes.
     reach_full_activation: float = 0.9
     # Adaptive elbow-up bias: fold when reaching near (r→r_min), straighten when
     # reaching far (r→r_max), interpolated by r. This lets the arm use its full
