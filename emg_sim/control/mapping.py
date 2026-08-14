@@ -38,6 +38,8 @@ class PolarController:
         norm = min(1.0, max(0.0, (self.r - c.r_min) / span))
         o.elbow_target = c.elbow_target_near * (1.0 - norm) + c.elbow_target_far * norm
         o.elbow_gain = c.elbow_gain
+        o.tool_down = c.tool_down
+        o.tool_down_gain = c.tool_down_gain
         return o
 
     def _split(self, a_left: float, a_right: float) -> tuple[float, float]:

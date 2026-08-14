@@ -158,6 +158,10 @@ class IKOptions:
     j1_preferred: bool = False
     j1_preferred_gain: float = 0.10
     j1_target: float = 0.0
+    # Tool-down: orient the end-effector approach axis (last frame +Z) toward
+    # world -Z so the manipulator points down at the target (null-space bias).
+    tool_down: bool = False
+    tool_down_gain: float = 0.30
 
 
 def _wrap_pi(diff: float) -> float:
@@ -331,6 +335,15 @@ class Manipulator:
             # J5 wrist-pitch -> 0
             if opts.j5_down and n >= 5:
                 dq_sec[4] += opts.j5_down_gain * (-self.q[4])
+
+            # Tool-down: gradient step aligning the end-effector approach axis
+            # (last frame local +Z) toward world -Z.
+            if opts.tool_down:
+                axis = Ts[-1][:3, :3] @ np.array([0.0, 0.0, 1.0])
+                diff = np.array([0.0, 0.0, -1.0]) - axis
+                for i in range(n):
+                    z_i = self._world_axis(i, Ts)
+                    dq_sec[i] += opts.tool_down_gain * float(np.dot(diff, np.cross(z_i, axis)))
 
             tmp1 = J @ dq_sec           # sum_i J_cols[i] * dq_sec[i]
             tmp2 = inv @ tmp1

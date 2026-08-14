@@ -62,6 +62,9 @@ class ControlConfig:
     elbow_target_near: float = 2.0   # at r_min: elbow folded (~144°)
     elbow_target_far: float = 0.1    # at r_max: elbow nearly straight
     elbow_gain: float = 0.15
+    # keep the manipulator pointing down at the target (null-space bias)
+    tool_down: bool = True
+    tool_down_gain: float = 0.35
 
 
 @dataclass
