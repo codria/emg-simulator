@@ -158,8 +158,8 @@ def test_engine_full_drive_reaches_out():
     eng.source.set_drive(1.0, 1.0)
     for _ in range(180):  # ~3 s
         eng.step(1 / 60)
-    assert _horiz_r(eng.tip) > 0.5          # arm extended near r_max (0.60)
-    assert abs(eng.tip[2]) < 0.05           # on the operation plane
+    assert _horiz_r(eng.tip) > 0.5          # arm extended near r_max
+    assert abs(eng.tip[2] - eng.cfg.control.z_plane) < 0.02   # on the operation plane
 
 
 def test_engine_zero_drive_stays_in():

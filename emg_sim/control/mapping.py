@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..kinematics.arm import make_standard_arm
+from ..kinematics.arm import IKOptions, make_standard_arm
 
 
 def polar_to_xyz(control_cfg, r: float, theta: float) -> np.ndarray:
@@ -27,7 +27,14 @@ class PolarController:
         self.target = polar_to_xyz(self.cfg, self.r, self.theta)
         # settle the arm into the operation plane so it doesn't start pointing up
         for _ in range(60):
-            self.arm.solve_ik(self.target)
+            self.arm.solve_ik(self.target, self._ik_opts())
+
+    def _ik_opts(self) -> IKOptions:
+        # rebuilt each call so elbow tuning from the settings window is live
+        o = IKOptions()
+        o.elbow_target = self.cfg.elbow_target
+        o.elbow_gain = self.cfg.elbow_gain
+        return o
 
     def _split(self, a_left: float, a_right: float) -> tuple[float, float]:
         """Return (a_r, a_theta) given (a_left, a_right) per cfg.left_axis."""
@@ -37,8 +44,9 @@ class PolarController:
 
     def target_from_activation(self, a_left: float, a_right: float) -> tuple[float, float]:
         a_r, a_theta = self._split(a_left, a_right)
-        a_r = float(np.clip(a_r, 0.0, 1.0))
-        a_theta = float(np.clip(a_theta, 0.0, 1.0))
+        full = max(1e-3, self.cfg.reach_full_activation)  # full effort → full range
+        a_r = float(np.clip(a_r / full, 0.0, 1.0))
+        a_theta = float(np.clip(a_theta / full, 0.0, 1.0))
         r = self.cfg.r_min + a_r * (self.cfg.r_max - self.cfg.r_min)
         theta = self.cfg.theta_min + a_theta * (self.cfg.theta_max - self.cfg.theta_min)
         return r, theta
@@ -47,5 +55,5 @@ class PolarController:
         """Advance one control step; returns (q, tip, target)."""
         self.r, self.theta = self.target_from_activation(a_left, a_right)
         self.target = polar_to_xyz(self.cfg, self.r, self.theta)
-        self.arm.solve_ik(self.target)  # warm-started from current q → smooth tracking
+        self.arm.solve_ik(self.target, self._ik_opts())  # warm-started → smooth
         return self.arm.q.copy(), self.arm.tip_position(), self.target.copy()

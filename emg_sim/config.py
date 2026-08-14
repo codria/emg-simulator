@@ -40,15 +40,25 @@ class NormalizeConfig:
 
 @dataclass
 class ControlConfig:
-    # Reachable band at z=0 is an annulus r∈[0.34, 0.64] (the arm can't fold to
-    # its own base, hence r_min>0 — matches the design's singularity avoidance).
-    # Defaults sit comfortably inside that band.
+    # Reachable band (annulus) is r∈[0.34, 0.71] with the relaxed elbow bias
+    # below — the arm can't fold to its own base (hence r_min>0) and now extends
+    # near full reach instead of staying bent. Defaults sit inside the band.
     r_min: float = 0.36
-    r_max: float = 0.60
+    r_max: float = 0.70
     theta_min: float = 0.0
     theta_max: float = math.pi
-    z_plane: float = 0.0           # horizontal operation plane (arm base height)
+    z_plane: float = 0.045         # operation plane at the shoulder (Tube3 centre)
     left_axis: str = "theta"       # left arm → θ; right arm → r (swap: "r")
+    # Activation counted as "full effort" → maps to r_max/θ_max. Because the soft
+    # saturation caps full-effort activation below 1.0 (~tanh(sat_gain)), without
+    # this the arm never reaches r_max (and never visibly extends). Rescale so
+    # full effort uses the whole reach; control below stays smooth.
+    reach_full_activation: float = 0.9
+    # elbow-up IK bias. The C++ default (1.5 / 0.3) pins the elbow bent (~63° even
+    # at max reach); a weaker bias keeps a natural "elbow up" pose at rest yet lets
+    # the arm straighten to reach far targets (~0.71 vs 0.64).
+    elbow_target: float = 1.0
+    elbow_gain: float = 0.15
 
 
 @dataclass
