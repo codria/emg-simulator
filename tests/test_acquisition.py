@@ -9,7 +9,9 @@ DLL-missing guard.
 import numpy as np
 import pytest
 
-from emg_sim.acquisition import BioRadioSource, discover
+from emg_sim.acquisition import BioRadioSource, discover, make_source
+from emg_sim.config import Config
+from emg_sim.engine import Engine
 
 
 class _FakeSignal:
@@ -67,3 +69,48 @@ def test_missing_dll_raises_cleanly():
         discover("does_not_exist.dll")
     with pytest.raises(FileNotFoundError):
         BioRadioSource("does_not_exist.dll").start()
+
+
+# -- source factory + runtime swap ------------------------------------------
+def test_make_source_selects_by_config():
+    cfg = Config()
+    assert type(make_source(cfg)).__name__ == "DummySource"   # default
+    cfg.acquisition.source = "bioradio"
+    cfg.acquisition.dll_path = "x.dll"
+    src = make_source(cfg)
+    assert isinstance(src, BioRadioSource) and src.dll_path == "x.dll"
+
+
+class _FakeSource:
+    def __init__(self, fail=False):
+        self.fail, self.started, self.stopped = fail, False, False
+
+    def start(self):
+        if self.fail:
+            raise RuntimeError("no device")
+        self.started = True
+
+    def stop(self):
+        self.stopped = True
+
+    def read(self, dt):
+        return np.zeros((0, 2))
+
+
+def test_set_source_swaps_and_starts_new():
+    eng = Engine(seed=1)
+    old = eng.source
+    new = _FakeSource()
+    eng.set_source(new)
+    assert eng.source is new and new.started
+    assert eng.source is not old
+
+
+def test_set_source_rolls_back_on_failure():
+    eng = Engine(seed=1)
+    old = eng.source
+    bad = _FakeSource(fail=True)
+    with pytest.raises(RuntimeError):
+        eng.set_source(bad)
+    assert eng.source is old          # unchanged on failure
+    assert bad.stopped                # cleaned up the half-open source

@@ -165,7 +165,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if eng.attract:
             parts.append("● ATTRACT / デモ (何か操作で解除)")
         else:
-            parts.append("F/J=力む  B=較正  R=リセット  D=デモ  S=設定")
+            parts.append("F/J=力む  B=較正  R=リセット  D=デモ  S=設定  C=接続")
         self.status.setText("     ".join(parts))
 
     # -- input -------------------------------------------------------------
@@ -178,6 +178,7 @@ class MainWindow(QtWidgets.QMainWindow):
         QtCore.Qt.Key.Key_R: "R",
         QtCore.Qt.Key.Key_D: "D",
         QtCore.Qt.Key.Key_S: "S",
+        QtCore.Qt.Key.Key_C: "C",
     }
 
     def eventFilter(self, obj, event) -> bool:
@@ -208,6 +209,9 @@ class MainWindow(QtWidgets.QMainWindow):
         elif k == "S":
             self._open_settings()
             self.engine.notify_user_input()
+        elif k == "C":
+            self._open_connection()
+            self.engine.notify_user_input()
 
     def _start_baseline(self) -> None:
         self.engine.start_baseline()
@@ -222,3 +226,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self._settings.show()
         self._settings.raise_()
         self._settings.activateWindow()
+
+    def _open_connection(self) -> None:
+        if getattr(self, "_connection", None) is None:
+            from .connection import ConnectionDialog
+            self._connection = ConnectionDialog(self.engine, self.cfg, self)
+        self._connection.show()
+        self._connection.raise_()
+        self._connection.activateWindow()

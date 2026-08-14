@@ -77,6 +77,24 @@ class Engine:
         if self.attract:
             self.set_attract(False)
 
+    def set_source(self, source) -> None:
+        """Swap the input source at runtime. Starts the new source first; if that
+        raises (bad DLL / no device), the current source is left running."""
+        try:
+            source.start()
+        except Exception:
+            try:
+                source.stop()
+            except Exception:
+                pass
+            raise
+        old, self.source = self.source, source
+        if old is not None and old is not source:
+            try:
+                old.stop()
+            except Exception:
+                pass
+
     # -- calibration flow (係員キー押下) -----------------------------------
     def start_baseline(self) -> None:
         self.notify_user_input()

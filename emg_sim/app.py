@@ -33,20 +33,28 @@ def main(argv=None) -> int:
 
     cfg = Config.load(args.config) if args.config else Config()
 
+    # CLI selects the launch source; the in-app Connection dialog (C key) can
+    # switch at runtime. Seed cfg.acquisition so the dialog reflects the CLI.
+    if args.bioradio:
+        cfg.acquisition.source = "bioradio"
+        cfg.acquisition.dll_path = args.bioradio
+        if args.mac:
+            cfg.acquisition.mac_hex = args.mac
+        if args.device:
+            cfg.acquisition.device = args.device
+    else:
+        cfg.acquisition.source = "dummy"   # no --bioradio → dummy this launch
+
     if args.list_devices:
-        if not args.bioradio:
+        if not cfg.acquisition.dll_path:
             ap.error("--list-devices requires --bioradio <DLL>")
         from .acquisition import discover
-        for name, mac in discover(args.bioradio):
+        for name, mac in discover(cfg.acquisition.dll_path):
             print(f"{mac:012X}\t{name}")
         return 0
 
-    source = None
-    if args.bioradio:
-        from .acquisition import BioRadioSource
-        source = BioRadioSource(args.bioradio,
-                                mac_id=int(args.mac, 16) if args.mac else None,
-                                device_id=args.device)
+    from .acquisition import make_source
+    source = make_source(cfg)
 
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv[:1])
 

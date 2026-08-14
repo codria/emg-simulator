@@ -94,12 +94,23 @@ class UIConfig:
 
 
 @dataclass
+class AcquisitionConfig:
+    source: str = "dummy"          # "dummy" (keyboard/slider) | "bioradio" (real device)
+    dll_path: str = ""             # path to BioRadioSDK.dll (free GLNeuroTech SDK)
+    mac_hex: str = ""              # BioRadio MAC as hex; "" = first device found
+    device: str = ""               # device name to match; "" = any
+    left: int = 0                  # BioPotential channel index → left arm
+    right: int = 1                 # BioPotential channel index → right arm
+
+
+@dataclass
 class Config:
     signal: SignalConfig = field(default_factory=SignalConfig)
     normalize: NormalizeConfig = field(default_factory=NormalizeConfig)
     control: ControlConfig = field(default_factory=ControlConfig)
     game: GameConfig = field(default_factory=GameConfig)
     ui: UIConfig = field(default_factory=UIConfig)
+    acquisition: AcquisitionConfig = field(default_factory=AcquisitionConfig)
 
     def to_dict(self) -> dict:
         return asdict(self)

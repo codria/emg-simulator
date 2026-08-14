@@ -10,4 +10,15 @@ from .source import InputSource
 from .dummy import DummySource
 from .bioradio import BioRadioSource, discover  # pythonnet import is deferred to start()
 
-__all__ = ["InputSource", "DummySource", "BioRadioSource", "discover"]
+
+def make_source(cfg):
+    """Build the input source selected by `cfg.acquisition` (dummy or bioradio)."""
+    a = cfg.acquisition
+    if a.source == "bioradio":
+        return BioRadioSource(a.dll_path,
+                              mac_id=int(a.mac_hex, 16) if a.mac_hex else None,
+                              device_id=a.device or None, left=a.left, right=a.right)
+    return DummySource(cfg, mode="manual")
+
+
+__all__ = ["InputSource", "DummySource", "BioRadioSource", "discover", "make_source"]
