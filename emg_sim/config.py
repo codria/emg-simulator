@@ -19,7 +19,7 @@ class SignalConfig:
     sample_rate: int = 1000        # Hz (dummy synthetic EMG / device rate)
     rms_window_ms: float = 150.0   # RMS window, design says 100–300 ms
     ema_alpha: float = 0.3         # light EMA on top of RMS (0..1, higher = snappier)
-    display_sec: float = 1.5       # raw-waveform history shown on screen
+    display_sec: float = 3.5       # waveform history window (wider = slower scroll)
     # real-EMG front-end filter (§6); applied before rectify/RMS, not to display
     filter_enabled: bool = True
     bp_low: float = 20.0           # band-pass low (Hz)

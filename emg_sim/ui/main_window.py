@@ -121,7 +121,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # green sphere = the game's reach target (fixed until reached), NOT the
         # control target (which tracks the arm's commanded destination / tip).
         self.scene.update_state(eng.control.arm, eng.game.target_xyz, eng.tip)
-        self.waves.update_state(eng.waveform(0), eng.waveform(1))
+        self.waves.update_state(eng.waveform(0), eng.waveform(1),
+                                eng.activation_history(0), eng.activation_history(1))
 
         r_t, th_t = eng.game.target_rt
         a_r = (r_t - cfg.control.r_min) / max(1e-6, cfg.control.r_max - cfg.control.r_min)

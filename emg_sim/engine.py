@@ -9,6 +9,8 @@ on a timer and reads the exposed state to render.
 
 from __future__ import annotations
 
+from collections import deque
+
 import numpy as np
 
 from .config import Config
@@ -40,6 +42,11 @@ class Engine:
         self.idle_t = 0.0
         self.attract = False
 
+        # per-sample history of the normalized activation (the value that actually
+        # drives control/judging) for overlay on the waveform
+        disp_n = max(1, int(round(self.cfg.signal.display_sec * self.cfg.signal.sample_rate)))
+        self._act_hist = [deque([0.0] * disp_n, maxlen=disp_n) for _ in range(2)]
+
     # -- main loop ---------------------------------------------------------
     def step(self, dt: float):
         self.t += dt
@@ -49,6 +56,11 @@ class Engine:
         if self.norm.capturing:
             self.norm.feed_baseline(self.amp)
         self.activation = self.norm.normalize(self.amp)
+
+        k = raw.shape[0] if raw.size else 0
+        if k:
+            self._act_hist[0].extend([float(self.activation[0])] * k)
+            self._act_hist[1].extend([float(self.activation[1])] * k)
 
         self.q, self.tip, self.target = self.control.update(
             float(self.activation[0]), float(self.activation[1])
@@ -98,3 +110,6 @@ class Engine:
     # -- views for the GUI -------------------------------------------------
     def waveform(self, ch: int) -> np.ndarray:
         return self.dsp.waveform(ch)
+
+    def activation_history(self, ch: int) -> np.ndarray:
+        return np.fromiter(self._act_hist[ch], float)
