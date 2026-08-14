@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-_DISPLAY_MAX = 1.15  # bar top = a bit above 1.0 so soft-sat over-range shows
+_DISPLAY_MAX = 1.0   # clean 0–1 reach fraction (a_eff is already clipped to [0, 1])
 
 
 class BarWidget(QtWidgets.QWidget):
