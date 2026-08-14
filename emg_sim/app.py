@@ -33,7 +33,7 @@ def main(argv=None) -> int:
         eng.set_attract(True)
 
     win = MainWindow(eng, cfg)
-    win.resize(1180, 700)
+    win.resize(1200, 780)
     win.show()
 
     if args.screenshot:

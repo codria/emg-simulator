@@ -17,7 +17,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from . import theme
 from .scene3d import Scene3D
 from .bars import BarWidget
-from .waveform import WaveformPanel
+from .waveform import WaveformPlot
 from .sound import Sfx
 
 _RAMP_PER_SEC = 3.0
@@ -40,7 +40,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.bar_left = BarWidget("L", "向き θ" if left_is_theta else "伸び r", cfg, theme.L_COLOR)
         self.bar_right = BarWidget("R", "伸び r" if left_is_theta else "向き θ", cfg, theme.R_COLOR)
         self.scene = Scene3D(cfg)
-        self.waves = WaveformPanel(cfg)
+        self.wave_left = WaveformPlot("Left Arm EMG", theme.L_COLOR)
+        self.wave_right = WaveformPlot("Right Arm EMG", theme.R_COLOR)
         self.sfx = Sfx(cfg.ui.sfx_reach, cfg.ui.sfx_volume) if cfg.ui.sfx_enabled else Sfx(None)
 
         self.sl_left = QtWidgets.QSlider(QtCore.Qt.Orientation.Vertical)
@@ -66,17 +67,25 @@ class MainWindow(QtWidgets.QMainWindow):
         self._timer.start(16)
 
     def _build_layout(self) -> None:
+        # Two rows to keep each arm's widgets together (less eye travel):
+        #   row 1: [ left bar | 3D | right bar ]
+        #   row 2: [ left graph | drive | right graph ]
+        # The two rows have independent column widths (they don't align) so the
+        # window stays compact.
         central = QtWidgets.QWidget()
-        h = QtWidgets.QHBoxLayout(central)
-        h.setContentsMargins(6, 6, 6, 6)
-        h.setSpacing(8)
-        # columns: [ left bar | 3D | right bar | graphs + sliders ]
-        h.addWidget(self.bar_left)
-        h.addWidget(self.scene, 1)
-        h.addWidget(self.bar_right)
+        outer = QtWidgets.QVBoxLayout(central)
+        outer.setContentsMargins(6, 6, 6, 6)
+        outer.setSpacing(8)
 
-        right = QtWidgets.QVBoxLayout()
-        right.addWidget(self.waves, 1)
+        row1 = QtWidgets.QHBoxLayout()
+        row1.setSpacing(8)
+        row1.addWidget(self.bar_left)
+        row1.addWidget(self.scene, 1)
+        row1.addWidget(self.bar_right)
+
+        row2 = QtWidgets.QHBoxLayout()
+        row2.setSpacing(8)
+        row2.addWidget(self.wave_left, 1)
         srow = QtWidgets.QHBoxLayout()
         srow.addWidget(QtWidgets.QLabel("L"))
         srow.addWidget(self.sl_left)
@@ -84,12 +93,12 @@ class MainWindow(QtWidgets.QMainWindow):
         srow.addWidget(QtWidgets.QLabel("R"))
         sbox = QtWidgets.QGroupBox("drive (dummy)")
         sbox.setLayout(srow)
-        sbox.setMaximumHeight(150)
-        right.addWidget(sbox)
-        rc = QtWidgets.QWidget()
-        rc.setLayout(right)
-        rc.setFixedWidth(330)
-        h.addWidget(rc)
+        sbox.setFixedWidth(150)
+        row2.addWidget(sbox)
+        row2.addWidget(self.wave_right, 1)
+
+        outer.addLayout(row1, 3)
+        outer.addLayout(row2, 2)
         self.setCentralWidget(central)
 
     # -- loop --------------------------------------------------------------
@@ -122,8 +131,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # green sphere = the game's reach target (fixed until reached), NOT the
         # control target (which tracks the arm's commanded destination / tip).
         self.scene.update_state(eng.control.arm, eng.game.target_xyz, eng.tip)
-        self.waves.update_state(eng.waveform(0), eng.waveform(1),
-                                eng.activation_history(0), eng.activation_history(1))
+        self.wave_left.update_state(eng.waveform(0), eng.activation_history(0))
+        self.wave_right.update_state(eng.waveform(1), eng.activation_history(1))
 
         r_t, th_t = eng.game.target_rt
         a_r = (r_t - cfg.control.r_min) / max(1e-6, cfg.control.r_max - cfg.control.r_min)
