@@ -134,7 +134,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if eng.attract:
             parts.append("● ATTRACT / デモ (何か操作で解除)")
         else:
-            parts.append("F/J=力む  B=較正  R=リセット  D=デモ")
+            parts.append("F/J=力む  B=較正  R=リセット  D=デモ  S=設定")
         self.status.setText("     ".join(parts))
 
     # -- input -------------------------------------------------------------
@@ -151,6 +151,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.engine.notify_user_input()
         elif k == "D":
             self.engine.set_attract(not self.engine.attract)
+        elif k == "S":
+            self._open_settings()
         else:
             self.engine.notify_user_input()
 
@@ -164,3 +166,11 @@ class MainWindow(QtWidgets.QMainWindow):
         QtCore.QTimer.singleShot(
             int(self.cfg.normalize.baseline_sec * 1000), self.engine.finish_baseline
         )
+
+    def _open_settings(self) -> None:
+        if getattr(self, "_settings", None) is None:
+            from .settings import SettingsDialog
+            self._settings = SettingsDialog(self.engine, self.cfg, self)
+        self._settings.show()
+        self._settings.raise_()
+        self._settings.activateWindow()

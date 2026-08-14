@@ -230,3 +230,6 @@ tools/cpp_ref/build/
 assets/sfx/
 *.mp3
 *.wav
+
+# ユーザ設定（マシン固有）
+config/

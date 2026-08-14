@@ -48,7 +48,9 @@ python -m emg_sim.app --auto     # start in attract / demo mode
 
 Controls: hold **F** / **J** to flex the left / right arm (or use the drive
 sliders); **B** captures the baseline (力を抜いて); **R** resets the session;
-**D** toggles attract/demo. A headless screenshot for CI/preview:
+**D** toggles attract/demo; **S** opens the settings window (live sliders for
+RMS window, marker delay, r-range, judging thresholds, … + JSON save/load).
+A headless screenshot for CI/preview:
 
 ```bash
 python -m emg_sim.app --screenshot out.png --frames 240

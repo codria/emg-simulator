@@ -91,6 +91,10 @@ class Engine:
         self.norm.reset_adaptation()
         self.game._reset_round()
 
+    def rebuild_dsp(self) -> None:
+        """Recreate the RMS pipeline after config changes (window/EMA)."""
+        self.dsp = RMSPipeline(self.cfg)
+
     # -- views for the GUI -------------------------------------------------
     def waveform(self, ch: int) -> np.ndarray:
         return self.dsp.waveform(ch)
