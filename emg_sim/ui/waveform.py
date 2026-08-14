@@ -32,21 +32,26 @@ class WaveformPlot(QtWidgets.QWidget):
         self.p = pg.PlotWidget(title=title)
         self.p.setBackground((26, 26, 34))
         self.p.setYRange(-2.2, 2.2)
-        self.p.setXRange(-disp, 0.0)
+        self.p.setXRange(-disp, 0.0, padding=0)      # data fills to both edges
         self.p.setMouseEnabled(False, False)
         self.p.setMenuEnabled(False)
+        self.p.setClipToView(True)
+        self.p.setDownsampling(mode="peak", auto=True)  # stays fast at long windows
 
-        axl = self.p.getAxis("left")         # 0..1 = normalized control value
+        axl = self.p.getAxis("left")         # raw = arbitrary units; ctrl = 0..1
         axl.setTicks([[(-2, "-2"), (-1, "-1"), (0, "0"), (1, "1"), (2, "2")]])
         axl.setStyle(tickTextOffset=3)
         axl.setPen(pg.mkPen((120, 125, 140)))
         axl.setTextPen(pg.mkPen((150, 155, 170)))
+        axl.setLabel("raw a.u.  /  control 0–1")
 
+        step = 2 if disp > 6 else 1
         axb = self.p.getAxis("bottom")       # time (s), 0 = now
-        ticks = [(-t, f"-{t}s") for t in range(int(disp), 0, -1)] + [(0.0, "now")]
+        ticks = [(-t, f"-{t}s") for t in range(int(disp), 0, -step)] + [(0.0, "now")]
         axb.setTicks([ticks])
         axb.setPen(pg.mkPen((120, 125, 140)))
         axb.setTextPen(pg.mkPen((150, 155, 170)))
+        axb.setLabel("time  (0 = now)")
         self.p.showGrid(x=True, y=True, alpha=0.15)
         self.p.addLegend(offset=(-6, 4), labelTextSize="7pt", brush=(30, 30, 40, 160))
 
