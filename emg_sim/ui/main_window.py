@@ -17,6 +17,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from .scene3d import Scene3D
 from .bars import BarWidget
 from .waveform import WaveformPanel
+from .sound import Sfx
 
 _RAMP_PER_SEC = 3.0
 _KEY_LEFT = "F"
@@ -39,6 +40,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.bar_right = BarWidget("R", "伸び r" if left_is_theta else "向き θ", cfg)
         self.scene = Scene3D(cfg)
         self.waves = WaveformPanel(cfg)
+        self.sfx = Sfx(cfg.ui.sfx_reach, cfg.ui.sfx_volume) if cfg.ui.sfx_enabled else Sfx(None)
 
         self.sl_left = QtWidgets.QSlider(QtCore.Qt.Orientation.Vertical)
         self.sl_right = QtWidgets.QSlider(QtCore.Qt.Orientation.Vertical)
@@ -102,7 +104,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.engine.source.set_drive(drive[0], drive[1])
 
         ev = self.engine.step(dt)
-        self._target_age = 0.0 if ev in ("reached", "round_complete") else self._target_age + dt
+        if ev in ("reached", "round_complete"):
+            self._target_age = 0.0
+            self.sfx.play()
+        else:
+            self._target_age += dt
         self._refresh()
 
     def _refresh(self) -> None:

@@ -56,6 +56,11 @@ A headless screenshot for CI/preview:
 python -m emg_sim.app --screenshot out.png --frames 240
 ```
 
+Optional reach sound: drop a WAV at `assets/sfx/reach.wav` (gitignored and not
+redistributed — see [`docs/decisions.md`](docs/decisions.md); e.g. convert a
+soundeffect-lab.info SE with `ffmpeg -i in.mp3 -ar 44100 -ac 1 assets/sfx/reach.wav`).
+Without it the app runs silently.
+
 ## Tests
 
 ```bash
