@@ -17,7 +17,7 @@ from PySide6 import QtWidgets
 from ..acquisition import discover, make_source
 
 _USER_CFG = Path("config") / "user.json"
-_OK, _ERR = "#2f9e57", "#c0504d"
+_OK, _ERR, _WARN = "#2f9e57", "#c0504d", "#b8860b"
 
 
 class ConnectionDialog(QtWidgets.QDialog):
@@ -52,10 +52,10 @@ class ConnectionDialog(QtWidgets.QDialog):
         form.addRow("SDK DLL", dll_row)
 
         scan_row = QtWidgets.QHBoxLayout()
-        b_scan = QtWidgets.QPushButton("スキャン")
-        b_scan.clicked.connect(self._scan)
+        self.b_scan = QtWidgets.QPushButton("スキャン")
+        self.b_scan.clicked.connect(self._scan)
         self.cmb = QtWidgets.QComboBox()
-        scan_row.addWidget(b_scan)
+        scan_row.addWidget(self.b_scan)
         scan_row.addWidget(self.cmb, 1)
         form.addRow("デバイス", scan_row)
 
@@ -81,13 +81,13 @@ class ConnectionDialog(QtWidgets.QDialog):
         lay.addWidget(self.status)
 
         btns = QtWidgets.QHBoxLayout()
-        b_apply = QtWidgets.QPushButton("適用（接続）")
-        b_apply.clicked.connect(self._apply)
+        self.b_apply = QtWidgets.QPushButton("適用（接続）")
+        self.b_apply.clicked.connect(self._apply)
         b_save = QtWidgets.QPushButton("保存")
         b_save.clicked.connect(self._save)
         b_close = QtWidgets.QPushButton("閉じる")
         b_close.clicked.connect(self.close)
-        btns.addWidget(b_apply)
+        btns.addWidget(self.b_apply)
         btns.addWidget(b_save)
         btns.addStretch(1)
         btns.addWidget(b_close)
@@ -117,11 +117,16 @@ class ConnectionDialog(QtWidgets.QDialog):
             self.ed_dll.setText(path)
 
     def _scan(self) -> None:
+        self._set_status("スキャン中…", _WARN)          # immediate feedback (scan blocks a few s)
+        self.b_scan.setEnabled(False)
+        QtWidgets.QApplication.processEvents()          # flush so the label paints before we block
         try:
             devices = discover(self.ed_dll.text().strip())
         except Exception as e:
             self._set_status(f"スキャン失敗: {e}", _ERR)
             return
+        finally:
+            self.b_scan.setEnabled(True)
         self.cmb.clear()
         for name, mac in devices:
             self.cmb.addItem(f"{name}  ({mac:012X})", mac)
@@ -137,11 +142,16 @@ class ConnectionDialog(QtWidgets.QDialog):
         a.left, a.right = self.sp_left.value(), self.sp_right.value()
         if a.source == "bioradio" and self.cmb.currentData() is not None:
             a.mac_hex = f"{self.cmb.currentData():012X}"   # from the scanned selection
+        self._set_status("接続中…" if a.source == "bioradio" else "切替中…", _WARN)
+        self.b_apply.setEnabled(False)
+        QtWidgets.QApplication.processEvents()
         try:
             self.engine.set_source(make_source(self.cfg))
         except Exception as e:
             self._set_status(f"接続失敗: {e}", _ERR)
             return
+        finally:
+            self.b_apply.setEnabled(True)
         self._set_status(self._state_text(), _OK)
 
     def _save(self) -> None:
