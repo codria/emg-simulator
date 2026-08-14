@@ -17,8 +17,8 @@ from pathlib import Path
 @dataclass
 class SignalConfig:
     sample_rate: int = 1000        # Hz (dummy synthetic EMG / device rate)
-    rms_window_ms: float = 150.0   # RMS window, design says 100–300 ms
-    ema_alpha: float = 0.25        # light EMA on top of RMS (0..1, higher = snappier)
+    rms_window_ms: float = 400.0   # RMS window (ms); smoother/slower at high values
+    ema_alpha: float = 0.20        # light EMA on top of RMS (0..1, higher = snappier)
     display_sec: float = 10.0      # waveform history window (wider = slower scroll)
     # real-EMG front-end filter (§6); applied before rectify/RMS, not to display
     filter_enabled: bool = True
@@ -33,10 +33,10 @@ class SignalConfig:
 class NormalizeConfig:
     baseline_sec: float = 2.0      # "力を抜いて" baseline capture duration
     soft_sat: bool = True          # tanh soft saturation
-    sat_gain: float = 1.6          # activation = tanh(sat_gain * x / scale)
+    sat_gain: float = 1.2          # activation = tanh(sat_gain * x / scale)
     adapt_rate: float = 0.05       # scale adaptation speed toward the peak (0 = off)
     fallback_scale: float = 0.5    # fixed-gain fallback / floor so it always moves
-    peak_halflife_sec: float = 45.0  # leaky-peak decay: stale highs fade (≈ recent-max
+    peak_halflife_sec: float = 120.0 # leaky-peak decay: stale highs fade (≈ recent-max
                                      # window) so a one-off artifact / max clench doesn't
                                      # latch the scale up forever and block the extremes
 

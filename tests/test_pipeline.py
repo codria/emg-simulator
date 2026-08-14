@@ -134,6 +134,7 @@ def test_mapping_full_reach_tracks_sat_gain():
 
 def test_mapping_target_reachable_and_tracks():
     cfg = Config()
+    cfg.normalize.sat_gain = 1.6      # pin the effort→reach mapping (full_ref = 0.9)
     ctrl = PolarController(cfg)
     for _ in range(80):
         q, tip, target = ctrl.update(0.8, 0.6)

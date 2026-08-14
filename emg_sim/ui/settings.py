@@ -128,7 +128,7 @@ class SettingsDialog(QtWidgets.QDialog):
         # sliders grouped under headings (each group ≈ one config section)
         groups = [
             ("平滑化・正規化", [
-                ("RMS 窓 (ms)", cfg.signal, "rms_window_ms", 10, 400, 0, rebuild),
+                ("RMS 窓 (ms)", cfg.signal, "rms_window_ms", 10, 600, 0, rebuild),
                 ("EMA α", cfg.signal, "ema_alpha", 0.05, 1.0, 2, rebuild),
                 ("ソフト飽和 gain", cfg.normalize, "sat_gain", 0.5, 3.0, 2, None),
                 ("オンライン適応率", cfg.normalize, "adapt_rate", 0.0, 0.2, 3, None),
