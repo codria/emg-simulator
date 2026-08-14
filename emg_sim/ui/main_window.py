@@ -134,9 +134,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.wave_left.update_state(eng.waveform(0), eng.activation_history(0))
         self.wave_right.update_state(eng.waveform(1), eng.activation_history(1))
 
+        # Marker = the ACTIVATION the target needs — the inverse of the arm-side
+        # mapping, which scales activation by 1/reach_full_activation (see
+        # PolarController.target_from_activation). Without this ×full the marker
+        # sits 1/full too high, so matching the bar to it overshoots θ/r by ~11%.
         r_t, th_t = eng.game.target_rt
-        a_r = (r_t - cfg.control.r_min) / max(1e-6, cfg.control.r_max - cfg.control.r_min)
-        a_th = (th_t - cfg.control.theta_min) / max(1e-6, cfg.control.theta_max - cfg.control.theta_min)
+        full = max(1e-3, cfg.control.reach_full_activation)
+        a_r = full * (r_t - cfg.control.r_min) / max(1e-6, cfg.control.r_max - cfg.control.r_min)
+        a_th = full * (th_t - cfg.control.theta_min) / max(1e-6, cfg.control.theta_max - cfg.control.theta_min)
         if cfg.ui.marker_enabled and not eng.attract:
             alpha = float(np.clip((self._target_age - cfg.ui.marker_delay_sec) / 1.0, 0.0, 1.0))
         else:

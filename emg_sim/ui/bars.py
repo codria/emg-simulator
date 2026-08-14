@@ -80,7 +80,8 @@ class BarWidget(QtWidgets.QWidget):
 
         # target marker band (delayed fade-in)
         if self.target is not None and self.marker_alpha > 0.01:
-            band = max(0.03, self.cfg.game.reach_dist /
+            full = max(1e-3, self.cfg.control.reach_full_activation)
+            band = max(0.03, full * self.cfg.game.reach_dist /
                        max(1e-6, self.cfg.control.r_max - self.cfg.control.r_min))
             yc = y_of(self.target)
             hh = bh * band / _DISPLAY_MAX
