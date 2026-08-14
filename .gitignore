@@ -233,3 +233,9 @@ assets/sfx/
 
 # ユーザ設定（マシン固有）
 config/
+
+# 仕様書の生成物（再生成: node docs/build_docx.mjs）。ソースは docs/*.md + docs/assets/
+docs/signal_processing_spec.docx
+docs/signal_processing_spec.html
+docs/signal_processing_spec.pdf
+docs/_docx_build.md
