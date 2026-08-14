@@ -68,7 +68,9 @@ class Scene3D(gl.GLViewWidget):
         self.opts["center"] = pg.Vector(0.0, 0.05, 0.12)
         self.setBackgroundColor(pg.mkColor(20, 20, 28))
 
-        z_floor = cfg.control.z_plane - 0.05
+        # Floor + pedestal are anchored to the ARM BASE (J1 at z=0), NOT to the
+        # operation plane — otherwise raising z_plane buries the arm in the pedestal.
+        z_floor = -0.05
 
         floor = gl.GLGridItem()
         floor.setSize(1.8, 1.8)
@@ -77,11 +79,12 @@ class Scene3D(gl.GLViewWidget):
         floor.setColor((120, 120, 140, 110))
         self.addItem(floor)
 
+        # pedestal: floor up to the arm base (top face at z=0)
         ped_v = armmesh.cylinder_tris(0.09, 0.05, 48)
         ped = gl.GLMeshItem(
             meshdata=gl.MeshData(vertexes=ped_v, faces=np.arange(len(ped_v)).reshape(-1, 3)),
             smooth=False, color=(0.34, 0.36, 0.42, 1.0), shader=_BRIGHT, glOptions="opaque")
-        ped.translate(0, 0, z_floor + 0.025)
+        ped.translate(0, 0, z_floor + 0.025)  # spans -0.05..0.0
         self.addItem(ped)
 
         # reach fan: translucent fill + outline + front arrow (all live)
