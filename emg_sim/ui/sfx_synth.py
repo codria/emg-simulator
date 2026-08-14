@@ -28,15 +28,26 @@ def _write_wav(samples: np.ndarray, path: Path) -> None:
 
 
 def enter_click() -> np.ndarray:
-    """Short subtle "tick" — a fast-decaying noise burst + faint ring (a "ツッ")."""
-    dur = 0.032
-    t = np.arange(int(_SR * dur)) / _SR
-    env = np.exp(-t / 0.005)                      # ~5 ms decay → crisp tick
-    rng = np.random.default_rng(42)               # fixed → identical every run
-    sig = rng.standard_normal(t.size) * env       # noise body
-    sig += 0.6 * np.sin(2 * np.pi * 2600.0 * t) * env   # faint tone so it's not pure hiss
+    """Short bright "tick" (~24 ms), tuned to the real カーソル移動6 sound measured from
+    its waveform: peak ≈ 0.24, spectral centroid ≈ 8 kHz, energy mostly 4–9 kHz, fast
+    attack + ~8 ms decay. Two tonal peaks (≈4.4 k / 7.5 k) over band-limited noise
+    reproduce its bimodal, high-passed character (measured 2–6 k ≈ 28 %, >6 k ≈ 65 %)."""
+    dur = 0.034
+    n = int(_SR * dur)
+    t = np.arange(n) / _SR
+    env = np.exp(-t / 0.008)                       # ~8 ms decay → ~24 ms audible
+    rng = np.random.default_rng(42)                # fixed → identical every run
+    sp = np.fft.rfft(rng.standard_normal(n))
+    fr = np.fft.rfftfreq(n, 1 / _SR)
+    sp[(fr < 3500) | (fr > 9500)] = 0              # band-limit noise to the active band
+    noise = np.fft.irfft(sp, n=n)
+    noise /= np.max(np.abs(noise)) + 1e-9
+    sig = 0.18 * noise
+    sig += 0.55 * np.sin(2 * np.pi * 4450.0 * t)   # measured lower peak
+    sig += 0.80 * np.sin(2 * np.pi * 7500.0 * t)   # measured upper energy (6–9 kHz)
+    sig *= env
     sig /= np.max(np.abs(sig)) + 1e-9
-    return 0.28 * sig                             # kept quiet / understated
+    return 0.24 * sig                              # matched subtle level
 
 
 def reach_chime() -> np.ndarray:
@@ -62,8 +73,7 @@ def ensure(kind: str) -> str | None:
     try:
         _CACHE.mkdir(parents=True, exist_ok=True)
         p = _CACHE / f"{kind}.wav"
-        if not p.exists():
-            _write_wav(_BUILDERS[kind](), p)
+        _write_wav(_BUILDERS[kind](), p)          # regenerate each run: cheap, never stale
         return str(p)
     except Exception:
         return None
