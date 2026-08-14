@@ -40,10 +40,11 @@ class NormalizeConfig:
 
 @dataclass
 class ControlConfig:
-    # Reachable band ≈ [0.14, 0.73] at the shoulder plane: with the adaptive elbow
-    # bias below, the arm folds in near the base and straightens out far, so the
-    # WHOLE physical range is usable (no implementation-imposed inner limit).
-    r_min: float = 0.15
+    # Physical reach ≈ [0.14, 0.73] at the shoulder plane (adaptive elbow folds in
+    # near the base, straightens out far, so the whole physical range is usable —
+    # no solver-imposed inner limit). r_min sits a bit above the physical floor as a
+    # comfortable operating floor: control gets twitchy very close to the base.
+    r_min: float = 0.23
     r_max: float = 0.70
     theta_min: float = 0.0
     theta_max: float = math.pi
