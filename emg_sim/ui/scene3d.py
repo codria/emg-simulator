@@ -241,9 +241,15 @@ class Scene3D(gl.GLViewWidget):
         z = self.cfg.control.z_plane
         tx, ty = float(tip[0]), float(tip[1])
         r = float(np.hypot(tx, ty))
-        # clamp into the fan so the arc always sweeps the front, never flips back
-        ang = float(np.clip(np.arctan2(ty, tx),
-                            self.cfg.control.theta_min, self.cfg.control.theta_max))
+        # Angle into the fan. atan2 has its branch cut at θ=π (−x axis), so tiny y
+        # jitter there flips it +π↔−π; snapping a below-axis tip to the NEARER fan
+        # edge (θ_max if x<0, θ_min if x≥0) keeps the arc stable instead of
+        # flickering full↔empty at 180°.
+        ang = float(np.arctan2(ty, tx))
+        tmin, tmax = self.cfg.control.theta_min, self.cfg.control.theta_max
+        if ang < tmin:
+            ang = tmax if tx < 0 else tmin
+        ang = min(max(ang, tmin), tmax)
         self._r_line.setData(pos=np.array([[0.0, 0.0, z], [tx, ty, z]]))
         ra = min(0.20, r * 0.5)
         aa = np.linspace(self.cfg.control.theta_min, ang, 24)
