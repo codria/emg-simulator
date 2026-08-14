@@ -7,9 +7,10 @@ immediately. Changing the RMS window / EMA rebuilds the DSP pipeline.
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from ..config import Config
 
@@ -54,6 +55,60 @@ class _SliderRow(QtWidgets.QWidget):
         self.val.setText(f"{cur:.{self.decimals}f}")
 
 
+class _SatCurve(QtWidgets.QWidget):
+    """Live preview of the soft-saturation curve  activation = tanh(gain · x)."""
+
+    def __init__(self):
+        super().__init__()
+        self.gain = 1.6
+        self.setFixedHeight(108)
+
+    def set_gain(self, g: float) -> None:
+        self.gain = float(g)
+        self.update()
+
+    def paintEvent(self, _e) -> None:
+        p = QtGui.QPainter(self)
+        p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+        x0, y0, x1, y1 = 26, h - 16, w - 10, 20        # plot area (y0 bottom, y1 top)
+        xmax = 2.0
+        p.fillRect(self.rect(), QtGui.QColor("#ffffff"))
+        p.setPen(QtGui.QPen(QtGui.QColor("#c8ccd4"), 1))
+        p.drawRect(x0, y1, x1 - x0, y0 - y1)
+
+        def sx(v):
+            return x0 + (v / xmax) * (x1 - x0)
+
+        def sy(v):
+            return y0 + v * (y1 - y0)                   # v in 0..1
+
+        p.setPen(QtGui.QPen(QtGui.QColor("#e2e6ec"), 1, QtCore.Qt.PenStyle.DashLine))
+        for g in (0.5, 1.0):
+            p.drawLine(x0, int(sy(g)), x1, int(sy(g)))
+        xf = int(sx(1.0))
+        p.drawLine(xf, y0, xf, y1)                      # x = 1 (満力比)
+
+        p.setPen(QtGui.QColor("#8a93a1"))
+        f = p.font()
+        f.setPointSize(7)
+        p.setFont(f)
+        p.drawText(6, int(sy(1.0)) + 4, "1")
+        p.drawText(6, int(sy(0.0)) + 2, "0")
+        p.drawText(xf - 8, y0 + 13, "満力")
+
+        path = QtGui.QPainterPath()
+        for i in range(65):
+            xv = xmax * i / 64
+            pt = QtCore.QPointF(sx(xv), sy(math.tanh(self.gain * xv)))
+            path.moveTo(pt) if i == 0 else path.lineTo(pt)
+        p.setPen(QtGui.QPen(QtGui.QColor("#0e7aa8"), 2))
+        p.drawPath(path)
+
+        p.setPen(QtGui.QColor("#5b6472"))
+        p.drawText(x0, y1 - 6, f"効きカーブ  tanh({self.gain:.2f}·x)   横=力み比 / 縦=活性度")
+
+
 class SettingsDialog(QtWidgets.QDialog):
     def __init__(self, engine, cfg, parent=None):
         super().__init__(parent)
@@ -93,15 +148,21 @@ class SettingsDialog(QtWidgets.QDialog):
             ]),
         ]
         self.rows = []
+        self.sat_curve = _SatCurve()                 # live tanh preview under the gain slider
         for title, specs in groups:
             box = QtWidgets.QGroupBox(title)
             v = QtWidgets.QVBoxLayout(box)
             v.setSpacing(4)
             for label, obj, attr, lo, hi, dec, cb in specs:
+                if attr == "sat_gain":
+                    cb = lambda: self.sat_curve.set_gain(cfg.normalize.sat_gain)
                 row = _SliderRow(label, obj, attr, lo, hi, dec, cb)
                 self.rows.append(row)
                 v.addWidget(row)
+                if attr == "sat_gain":
+                    v.addWidget(self.sat_curve)
             lay.addWidget(box)
+        self.sat_curve.set_gain(cfg.normalize.sat_gain)   # initial draw
 
         btns = QtWidgets.QHBoxLayout()
         b_save = QtWidgets.QPushButton("保存")
@@ -114,7 +175,7 @@ class SettingsDialog(QtWidgets.QDialog):
         btns.addWidget(self.status, 1)
         lay.addLayout(btns)
         lay.addStretch(1)
-        self.resize(460, 470)
+        self.resize(480, 585)
 
     def _clamp_r(self, which: str) -> None:
         c = self.cfg.control
