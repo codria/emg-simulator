@@ -5,7 +5,7 @@ GLMeshItem per part, re-transformed each frame by its parent joint frame. The
 reach fan (a filled + outlined half-annulus over [θ_min,θ_max] between r_min and
 r_max) is rebuilt every frame from cfg, so it tracks the r/θ sliders and shows
 the play area; a yellow arrow marks the forward direction. The target is a green
-sphere with a green reach-region ring; the arm tip is a small cyan marker.
+wedge (filled + outlined) = the (r,θ) hit zone; the arm tip is a small cyan marker.
 """
 
 from __future__ import annotations
@@ -230,7 +230,8 @@ class Scene3D(gl.GLViewWidget):
                                               glOptions=_LINE_GL)
         self._target_ring.setDepthValue(22)
         self.addItem(self._target_ring)
-        self._set_target(0.0, 0.0)      # seed valid geometry before the first tick paints
+        _c = self.cfg.control                          # seed valid geometry before first paint
+        self._set_target(0.5 * (_c.r_min + _c.r_max), 0.5 * (_c.theta_min + _c.theta_max))
 
         pmd = gl.MeshData.sphere(rows=8, cols=8, radius=0.018)
         self.tipmark = gl.GLMeshItem(meshdata=pmd, smooth=True, color=_C_TIP, shader=_BRIGHT)
@@ -286,17 +287,23 @@ class Scene3D(gl.GLViewWidget):
                                               [c.r_max * np.cos(c.theta_min),
                                                c.r_max * np.sin(c.theta_min), z]]))
 
-    def _set_target(self, cx: float, cy: float) -> None:
-        """Flat target disc (fill + outline) centered at (cx,cy) on the plane."""
-        rr = self.cfg.game.reach_dist
-        z = self.cfg.control.z_plane
-        n = 48
-        th = np.linspace(0, 2 * np.pi, n)
-        rim = np.column_stack([cx + rr * np.cos(th), cy + rr * np.sin(th), np.full(n, z)])
-        verts = np.vstack([[cx, cy, z], rim])          # 0 = center, 1..n = rim
-        faces = np.array([[0, i, i + 1] for i in range(1, n)])
-        self._target_fill.setMeshData(vertexes=verts, faces=faces)
-        self._target_ring.setData(pos=rim)
+    def _set_target(self, r_t: float, th_t: float) -> None:
+        """Flat target wedge (fill + outline) = the (r,θ) hit zone on the plane:
+        r ∈ [r_t±reach_r], θ ∈ [th_t±reach_theta] — a small annular sector."""
+        g, z = self.cfg.game, self.cfg.control.z_plane
+        r0, r1 = r_t - g.reach_r, r_t + g.reach_r
+        dth = np.radians(g.reach_theta_deg)
+        n = 16
+        th = np.linspace(th_t - dth, th_t + dth, n)
+        inner = np.column_stack([r0 * np.cos(th), r0 * np.sin(th), np.full(n, z)])
+        outer = np.column_stack([r1 * np.cos(th), r1 * np.sin(th), np.full(n, z)])
+        verts = np.vstack([inner, outer])              # 0..n-1 inner, n..2n-1 outer
+        faces = []
+        for i in range(n - 1):
+            a, b, cc, d = i, i + 1, n + i, n + i + 1
+            faces += [[a, cc, d], [a, d, b]]
+        self._target_fill.setMeshData(vertexes=verts, faces=np.array(faces))
+        self._target_ring.setData(pos=np.vstack([inner, outer[::-1], inner[:1]]))
 
     # -- per-frame ---------------------------------------------------------
     def update_state(self, arm, target_xyz, tip) -> None:
@@ -313,7 +320,8 @@ class Scene3D(gl.GLViewWidget):
             m = flat @ (Ts[parent + 1] @ xform)
             sh.setTransform(pg.Transform3D(*m.flatten()))
         self._place(self.tipmark, tip)
-        self._set_target(target_xyz[0], target_xyz[1])
+        self._set_target(float(np.hypot(target_xyz[0], target_xyz[1])),
+                         float(np.arctan2(target_xyz[1], target_xyz[0])))
 
         # r / θ overlay for the live arm TIP (teach polar coords; moves as you flex)
         z = self.cfg.control.z_plane

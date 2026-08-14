@@ -143,7 +143,8 @@ class SettingsDialog(QtWidgets.QDialog):
             ]),
             ("ターゲッティング", [
                 ("目標マージン (端除外)", cfg.game, "target_margin", 0.0, 0.4, 2, None),
-                ("到達距離 (m)", cfg.game, "reach_dist", 0.02, 0.12, 3, None),
+                ("到達 r 許容 (m)", cfg.game, "reach_r", 0.02, 0.12, 3, None),
+                ("到達 θ 許容 (deg)", cfg.game, "reach_theta_deg", 1.0, 30.0, 1, None),
                 ("滞在時間 (s)", cfg.game, "hold_sec", 0.1, 1.0, 2, None),
                 ("マーカー遅延 (s)", cfg.ui, "marker_delay_sec", 0.0, 8.0, 1, None),
             ]),
@@ -176,7 +177,7 @@ class SettingsDialog(QtWidgets.QDialog):
         btns.addWidget(self.status, 1)
         lay.addLayout(btns)
         lay.addStretch(1)
-        self.resize(480, 620)
+        self.resize(480, 650)
 
     def _clamp_r(self, which: str) -> None:
         c = self.cfg.control

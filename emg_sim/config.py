@@ -73,7 +73,10 @@ class ControlConfig:
 
 @dataclass
 class GameConfig:
-    reach_dist: float = 0.05       # tip within 5 cm of target
+    # Target hit zone is an (r, θ) box (a fan wedge), tuned per-axis so the θ
+    # difficulty (high-gain: arc = r·Δθ) can be eased independently of r.
+    reach_r: float = 0.05          # radial half-tolerance (m): |r_tip − r_target|
+    reach_theta_deg: float = 7.0   # angular half-tolerance (deg): |θ_tip − θ_target|
     hold_sec: float = 0.4          # dwell time to count as reached (0.3–0.5)
     targets_per_round: int = 5     # 5 reaches → time → reset
     min_target_sep: float = 0.15   # next target at least this far from current

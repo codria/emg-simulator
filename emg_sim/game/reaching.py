@@ -50,9 +50,18 @@ class ReachingGame:
     def update(self, tip, dt: float):
         """Advance the game; returns 'reached', 'round_complete', or None."""
         self.round_time += dt
-        d = float(np.linalg.norm(np.asarray(tip) - self.target_xyz))
+        # Hit zone is an (r, θ) box (the fan wedge), tested per-axis: the tip's own
+        # r/θ vs the target's, so r and θ tolerances are independent (θ can be eased
+        # for its high gain). Polar origin is the world origin (see polar_to_xyz).
+        tip = np.asarray(tip, float)
+        r_tip = float(np.hypot(tip[0], tip[1]))
+        th_tip = float(np.arctan2(tip[1], tip[0]))
+        r_t, th_t = self.target_rt
+        dth = abs(th_tip - th_t)
+        dth = min(dth, 2 * np.pi - dth)                 # shortest angular distance
+        hit = abs(r_tip - r_t) < self.cfg.reach_r and dth < np.radians(self.cfg.reach_theta_deg)
         event = None
-        if d < self.cfg.reach_dist:
+        if hit:
             self.hold += dt
             if self.hold >= self.cfg.hold_sec:
                 self.reached += 1

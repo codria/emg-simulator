@@ -85,7 +85,7 @@ class BarWidget(QtWidgets.QWidget):
         # tolerance the caller passes (r vs θ differ); fall back to the r-range form.
         if self.target is not None and self.marker_alpha > 0.01:
             band = self.band if self.band is not None else (
-                self.cfg.game.reach_dist /
+                2 * self.cfg.game.reach_r /
                 max(1e-6, self.cfg.control.r_max - self.cfg.control.r_min))
             band = max(0.03, band)
             yc = y_of(self.target)

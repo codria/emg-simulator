@@ -159,6 +159,27 @@ def test_game_reach_needs_dwell():
     assert ev in ("reached", "round_complete")
 
 
+def test_game_reach_zone_is_rtheta_box():
+    # hit zone is an (r,θ) box: independent per-axis tolerances (θ eased separately)
+    cfg = Config()
+    dr = cfg.game.reach_r
+    dth = math.radians(cfg.game.reach_theta_deg)
+    hold = cfg.game.hold_sec + 1e-3
+
+    def reached(r, th):
+        g = ReachingGame(cfg)                       # fresh so the respawn can't interfere
+        g.target_rt = (0.45, 1.2)
+        g.target_xyz = polar_to_xyz(cfg.control, 0.45, 1.2)
+        return g.update(polar_to_xyz(cfg.control, r, th), hold) in ("reached", "round_complete")
+
+    r0, t0 = 0.45, 1.2
+    assert reached(r0, t0)                          # dead centre
+    assert reached(r0 + dr * 0.8, t0)               # inside r tolerance
+    assert reached(r0, t0 + dth * 0.8)              # inside θ tolerance
+    assert not reached(r0 + dr * 1.5, t0)           # outside r tolerance
+    assert not reached(r0, t0 + dth * 1.5)          # outside θ tolerance
+
+
 def test_game_round_completes_after_five():
     cfg = Config()
     g = ReachingGame(cfg)
