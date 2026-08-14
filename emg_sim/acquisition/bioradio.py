@@ -28,6 +28,8 @@ without pythonnet (Windows-only dep) — tests and non-device machines are safe.
 
 from __future__ import annotations
 
+import os
+
 import numpy as np
 
 from .source import InputSource
@@ -54,6 +56,8 @@ def discover(dll_path: str) -> list[tuple[str, int]]:
 
     Handy for picking a device before constructing a `BioRadioSource`.
     """
+    if not os.path.isfile(dll_path):
+        raise FileNotFoundError(f"BioRadioSDK.dll not found: {dll_path}")
     clr = _ensure_clr()
     clr.AddReference(dll_path)
     from GLNeuroTech.Devices.BioRadio import BioRadioDeviceManager  # type: ignore
@@ -88,6 +92,8 @@ class BioRadioSource(InputSource):
 
     # -- lifecycle ---------------------------------------------------------
     def start(self) -> None:
+        if not os.path.isfile(self.dll_path):
+            raise FileNotFoundError(f"BioRadioSDK.dll not found: {self.dll_path}")
         clr = _ensure_clr()
         clr.AddReference(self.dll_path)
         from GLNeuroTech.Devices.BioRadio import BioRadioDeviceManager  # type: ignore
