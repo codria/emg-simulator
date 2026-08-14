@@ -13,8 +13,19 @@ from __future__ import annotations
 import numpy as np
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
+from OpenGL import GL
 from PySide6 import QtGui
 from pyqtgraph.opengl.shaders import FragmentShader, ShaderProgram, VertexShader
+
+# Translucent fill that does NOT write depth, so parts below the plane still show
+# through it (plain 'translucent' writes depth and occludes them).
+_FILL_GL = {
+    GL.GL_DEPTH_TEST: True,
+    GL.GL_BLEND: True,
+    GL.GL_CULL_FACE: False,
+    "glBlendFunc": (GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA),
+    "glDepthMask": (GL.GL_FALSE,),
+}
 
 from . import armmesh
 
@@ -100,7 +111,8 @@ class Scene3D(gl.GLViewWidget):
 
         # reach fan: translucent fill + outline + front arrow (all live)
         self._fan_fill = gl.GLMeshItem(smooth=False, color=_C_FAN_FILL,
-                                       glOptions="translucent", drawEdges=False)
+                                       glOptions=_FILL_GL, drawEdges=False)
+        self._fan_fill.setDepthValue(10)  # draw after opaque parts → tints, never occludes
         self.addItem(self._fan_fill)
         self._arc_in = gl.GLLinePlotItem(width=2.0, antialias=True, color=_C_FAN)
         self._arc_out = gl.GLLinePlotItem(width=2.0, antialias=True, color=_C_FAN)
@@ -155,6 +167,13 @@ class Scene3D(gl.GLViewWidget):
         self.tipmark = gl.GLMeshItem(meshdata=pmd, smooth=True, color=_C_TIP, shader=_BRIGHT)
         self.addItem(self.tipmark)
 
+    def paintGL(self, *args, **kwds):
+        # The fan fill draws with glDepthMask(False); pyqtgraph doesn't restore it,
+        # so re-enable depth writes here (before glClear) or the depth buffer never
+        # clears and the whole scene z-fights.
+        GL.glDepthMask(GL.GL_TRUE)
+        super().paintGL(*args, **kwds)
+
     # -- reach fan ---------------------------------------------------------
     def _arc(self, radius: float, th0: float, th1: float, n: int = 72) -> np.ndarray:
         th = np.linspace(th0, th1, n)
@@ -169,11 +188,13 @@ class Scene3D(gl.GLViewWidget):
         for edge, th in ((self._edge_lo, c.theta_min), (self._edge_hi, c.theta_max)):
             edge.setData(pos=np.array([[c.r_min * np.cos(th), c.r_min * np.sin(th), z],
                                        [c.r_max * np.cos(th), c.r_max * np.sin(th), z]]))
-        # translucent fill
+        # translucent fill, a hair below the plane so the arm (which operates at
+        # z_plane) doesn't z-fight / get sliced by the coplanar sheet
         n = 48
+        zf = z - 0.012
         th = np.linspace(c.theta_min, c.theta_max, n)
-        inner = np.column_stack([c.r_min * np.cos(th), c.r_min * np.sin(th), np.full(n, z)])
-        outer = np.column_stack([c.r_max * np.cos(th), c.r_max * np.sin(th), np.full(n, z)])
+        inner = np.column_stack([c.r_min * np.cos(th), c.r_min * np.sin(th), np.full(n, zf)])
+        outer = np.column_stack([c.r_max * np.cos(th), c.r_max * np.sin(th), np.full(n, zf)])
         verts = np.vstack([inner, outer])
         faces = []
         for i in range(n - 1):
