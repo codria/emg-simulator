@@ -64,6 +64,9 @@ _C_TIP = _rgb(theme.TIP, 1.0)
 _C_FAN = _rgb(theme.FAN, 1.0)
 _C_FAN_FILL = _rgb(theme.FAN, 0.16)
 _C_FRONT = _rgb(theme.FRONT, 1.0)
+_C_R = _rgb(theme.R_COLOR, 0.95)       # radius r → cyan (matches the R channel)
+_C_TH = _rgb(theme.L_COLOR, 0.95)      # angle θ → yellow (matches the L channel)
+_C_TH_REF = _rgb(theme.L_COLOR, 0.35)  # θ=0 reference axis (faint)
 
 
 class Scene3D(gl.GLViewWidget):
@@ -110,6 +113,21 @@ class Scene3D(gl.GLViewWidget):
             self.addItem(self._front_label)
         except Exception:
             self._front_label = None
+
+        # r / θ teaching overlay: radius line to the target, angle arc, θ=0 axis
+        self._r_line = gl.GLLinePlotItem(width=3.0, antialias=True, color=_C_R)
+        self._theta_arc = gl.GLLinePlotItem(width=3.0, antialias=True, color=_C_TH)
+        self._theta_ref = gl.GLLinePlotItem(width=1.2, antialias=True, color=_C_TH_REF)
+        for it in (self._theta_ref, self._theta_arc, self._r_line):
+            self.addItem(it)
+        try:
+            self._r_label = gl.GLTextItem(text="r", color=(*theme.R_COLOR, 255))
+            self._theta_label = gl.GLTextItem(text="θ", color=(*theme.L_COLOR, 255))
+            self.addItem(self._r_label)
+            self.addItem(self._theta_label)
+        except Exception:
+            self._r_label = self._theta_label = None
+
         self._update_fan()
 
         # parametric arm parts
@@ -169,6 +187,10 @@ class Scene3D(gl.GLViewWidget):
         self._front.setData(pos=np.array([base, tip, tip, hl, tip, hr]))
         if self._front_label is not None:
             self._front_label.setData(pos=tip + 0.04 * dvec + np.array([0, 0, 0.02]))
+        # θ=0 reference axis (origin → θ_min direction, out to r_max)
+        self._theta_ref.setData(pos=np.array([[0.0, 0.0, z],
+                                              [c.r_max * np.cos(c.theta_min),
+                                               c.r_max * np.sin(c.theta_min), z]]))
 
     # -- per-frame ---------------------------------------------------------
     def update_state(self, arm, target_xyz, tip) -> None:
@@ -186,6 +208,23 @@ class Scene3D(gl.GLViewWidget):
                                 target_xyz[1] + rr * np.sin(th),
                                 np.full(48, self.cfg.control.z_plane)])
         self._region.setData(pos=ring)
+
+        # r / θ overlay for the live arm TIP (teach polar coords; moves as you flex)
+        z = self.cfg.control.z_plane
+        tx, ty = float(tip[0]), float(tip[1])
+        r = float(np.hypot(tx, ty))
+        ang = float(np.arctan2(ty, tx))
+        self._r_line.setData(pos=np.array([[0.0, 0.0, z], [tx, ty, z]]))
+        ra = min(0.20, r * 0.5)
+        aa = np.linspace(self.cfg.control.theta_min, ang, 24)
+        self._theta_arc.setData(pos=np.column_stack([ra * np.cos(aa), ra * np.sin(aa),
+                                                     np.full(aa.size, z)]))
+        if self._r_label is not None:
+            self._r_label.setData(pos=np.array([tx * 0.5, ty * 0.5, z + 0.03]))
+        if self._theta_label is not None:
+            am = 0.5 * (self.cfg.control.theta_min + ang)
+            self._theta_label.setData(pos=np.array([(ra + 0.04) * np.cos(am),
+                                                    (ra + 0.04) * np.sin(am), z + 0.03]))
 
     @staticmethod
     def _place(item, p) -> None:

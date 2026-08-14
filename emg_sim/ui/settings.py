@@ -69,7 +69,7 @@ class SettingsDialog(QtWidgets.QDialog):
             ("EMA α", cfg.signal, "ema_alpha", 0.05, 1.0, 2, rebuild),
             ("ソフト飽和 gain", cfg.normalize, "sat_gain", 0.5, 3.0, 2, None),
             ("オンライン適応率", cfg.normalize, "adapt_rate", 0.0, 0.2, 3, None),
-            ("r_min", cfg.control, "r_min", 0.0, 0.60, 2, lambda: self._clamp_r("r_min")),
+            ("r_min", cfg.control, "r_min", 0.15, 0.60, 2, lambda: self._clamp_r("r_min")),
             ("r_max", cfg.control, "r_max", 0.30, 0.90, 2, lambda: self._clamp_r("r_max")),
             ("肘上げ target (低=伸展)", cfg.control, "elbow_target", 0.3, 1.6, 2, None),
             ("目標マージン (端除外)", cfg.game, "target_margin", 0.0, 0.4, 2, None),
