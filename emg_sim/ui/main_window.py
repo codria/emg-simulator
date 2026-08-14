@@ -136,25 +136,27 @@ class MainWindow(QtWidgets.QMainWindow):
         self.wave_right.update_state(eng.waveform(1), eng.amp_history(1),
                                      eng.norm.baseline[1], eng.norm.scale[1], eng.norm.peak[1])
 
-        # Marker = the ACTIVATION the target needs — the inverse of the arm-side
-        # mapping, which scales activation by 1/full_ref (see PolarController).
-        # Without this ×full the marker sits 1/full too high, so matching the bar
-        # to it overshoots θ/r. full_ref tracks sat_gain, so the marker stays right.
-        r_t, th_t = eng.game.target_rt
+        # Bars show the REACH FRACTION a_eff = activation / full_ref (0 = r_min/θ_min,
+        # 1 = r_max/θ_max) — i.e. what the arm actually drives to, so a full drive
+        # fills the bar to ~1 at any sat_gain. (Raw activation caps below 1 at low
+        # sat_gain and then looks like it disagrees with the arm.) Marker = the
+        # target's fraction; matching the fill to the marker puts the arm on target.
         full = eng.control.full_ref()
-        a_r = full * (r_t - cfg.control.r_min) / max(1e-6, cfg.control.r_max - cfg.control.r_min)
-        a_th = full * (th_t - cfg.control.theta_min) / max(1e-6, cfg.control.theta_max - cfg.control.theta_min)
+        a_eff = np.clip(eng.activation / full, 0.0, 1.0)
+        r_t, th_t = eng.game.target_rt
+        m_r = (r_t - cfg.control.r_min) / max(1e-6, cfg.control.r_max - cfg.control.r_min)
+        m_th = (th_t - cfg.control.theta_min) / max(1e-6, cfg.control.theta_max - cfg.control.theta_min)
         if cfg.ui.marker_enabled and not eng.attract:
             alpha = float(np.clip((self._target_age - cfg.ui.marker_delay_sec) / 1.0, 0.0, 1.0))
         else:
             alpha = 0.0
         hold = eng.game.hold_frac
         if cfg.control.left_axis == "theta":
-            self.bar_left.set_state(eng.activation[0], a_th, alpha, hold)
-            self.bar_right.set_state(eng.activation[1], a_r, alpha, hold)
+            self.bar_left.set_state(a_eff[0], m_th, alpha, hold)
+            self.bar_right.set_state(a_eff[1], m_r, alpha, hold)
         else:
-            self.bar_left.set_state(eng.activation[0], a_r, alpha, hold)
-            self.bar_right.set_state(eng.activation[1], a_th, alpha, hold)
+            self.bar_left.set_state(a_eff[0], m_r, alpha, hold)
+            self.bar_right.set_state(a_eff[1], m_th, alpha, hold)
 
         g = eng.game
         parts = [f"到達 {g.reached}/{cfg.game.targets_per_round}", f"時間 {g.round_time:4.1f}s"]

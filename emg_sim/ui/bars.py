@@ -1,7 +1,8 @@
-"""EMG activation bar with target marker (band + delayed fade-in).
+"""EMG reach bar with target marker (band + delayed fade-in).
 
-The bar shows the normalized activation actually used for control (§5.5). The
-target marker is a translucent band at the activation the current target needs;
+The bar shows the reach fraction (0 = inner edge / θ_min, 1 = full reach) the arm
+is driving to — a_eff = activation / full_ref — so it matches the arm at any
+sat_gain. The target marker is a translucent band at the target's reach fraction;
 it fades in only after a delay (config) so the player gets a moment to explore
 first. Marker is position-control only (the app passes alpha=0 to hide it).
 """
@@ -80,8 +81,7 @@ class BarWidget(QtWidgets.QWidget):
 
         # target marker band (delayed fade-in)
         if self.target is not None and self.marker_alpha > 0.01:
-            full = max(1e-3, self.cfg.control.reach_full_activation)
-            band = max(0.03, full * self.cfg.game.reach_dist /
+            band = max(0.03, self.cfg.game.reach_dist /
                        max(1e-6, self.cfg.control.r_max - self.cfg.control.r_min))
             yc = y_of(self.target)
             hh = bh * band / _DISPLAY_MAX
