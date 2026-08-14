@@ -12,5 +12,6 @@ pipeline.py.
 
 from .pipeline import RMSPipeline
 from .normalize import Normalizer
+from .filter import EMGFilter
 
-__all__ = ["RMSPipeline", "Normalizer"]
+__all__ = ["RMSPipeline", "Normalizer", "EMGFilter"]

@@ -20,6 +20,13 @@ class SignalConfig:
     rms_window_ms: float = 150.0   # RMS window, design says 100–300 ms
     ema_alpha: float = 0.3         # light EMA on top of RMS (0..1, higher = snappier)
     display_sec: float = 1.5       # raw-waveform history shown on screen
+    # real-EMG front-end filter (§6); applied before rectify/RMS, not to display
+    filter_enabled: bool = True
+    bp_low: float = 20.0           # band-pass low (Hz)
+    bp_high: float = 450.0         # band-pass high (Hz; clamped below Nyquist)
+    bp_order: int = 4
+    notch_freq: float = 50.0       # mains notch (50 or 60 Hz)
+    notch_q: float = 30.0
 
 
 @dataclass
