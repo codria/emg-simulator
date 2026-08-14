@@ -69,8 +69,10 @@ class MainWindow(QtWidgets.QMainWindow):
         h = QtWidgets.QHBoxLayout(central)
         h.setContentsMargins(6, 6, 6, 6)
         h.setSpacing(8)
+        # columns: [ left bar | 3D | right bar | graphs + sliders ]
         h.addWidget(self.bar_left)
         h.addWidget(self.scene, 1)
+        h.addWidget(self.bar_right)
 
         right = QtWidgets.QVBoxLayout()
         right.addWidget(self.waves, 1)
@@ -87,7 +89,6 @@ class MainWindow(QtWidgets.QMainWindow):
         rc.setLayout(right)
         rc.setFixedWidth(330)
         h.addWidget(rc)
-        h.addWidget(self.bar_right)
         self.setCentralWidget(central)
 
     # -- loop --------------------------------------------------------------

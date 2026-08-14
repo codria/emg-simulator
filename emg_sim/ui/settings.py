@@ -69,8 +69,8 @@ class SettingsDialog(QtWidgets.QDialog):
             ("EMA α", cfg.signal, "ema_alpha", 0.05, 1.0, 2, rebuild),
             ("ソフト飽和 gain", cfg.normalize, "sat_gain", 0.5, 3.0, 2, None),
             ("オンライン適応率", cfg.normalize, "adapt_rate", 0.0, 0.2, 3, None),
-            ("r_min", cfg.control, "r_min", 0.34, 0.55, 2, None),
-            ("r_max", cfg.control, "r_max", 0.40, 0.64, 2, None),
+            ("r_min", cfg.control, "r_min", 0.0, 0.60, 2, lambda: self._clamp_r("r_min")),
+            ("r_max", cfg.control, "r_max", 0.30, 0.90, 2, lambda: self._clamp_r("r_max")),
             ("到達距離 (m)", cfg.game, "reach_dist", 0.02, 0.12, 3, None),
             ("滞在時間 (s)", cfg.game, "hold_sec", 0.1, 1.0, 2, None),
             ("マーカー遅延 (s)", cfg.ui, "marker_delay_sec", 0.0, 8.0, 1, None),
@@ -92,6 +92,16 @@ class SettingsDialog(QtWidgets.QDialog):
         btns.addWidget(self.status, 1)
         lay.addLayout(btns)
         self.resize(440, 380)
+
+    def _clamp_r(self, which: str) -> None:
+        c = self.cfg.control
+        if which == "r_min" and c.r_min > c.r_max:
+            c.r_min = c.r_max
+        elif which == "r_max" and c.r_max < c.r_min:
+            c.r_max = c.r_min
+        for row in self.rows:
+            if row.attr in ("r_min", "r_max"):
+                row.refresh()
 
     def _save(self):
         _USER_CFG.parent.mkdir(exist_ok=True)

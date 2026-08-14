@@ -23,7 +23,7 @@ class BarWidget(QtWidgets.QWidget):
         self.target = None        # target activation [0,1] or None
         self.marker_alpha = 0.0
         self.hold_frac = 0.0
-        self.setFixedWidth(88)
+        self.setFixedWidth(104)
         self.setMinimumHeight(240)
 
     def set_state(self, value, target, marker_alpha, hold_frac=0.0) -> None:
@@ -38,9 +38,11 @@ class BarWidget(QtWidgets.QWidget):
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
 
-        pad_top, pad_bot, pad_x = 34, 30, 20
-        bx, by = pad_x, pad_top
-        bw, bh = w - 2 * pad_x, h - pad_top - pad_bot
+        pad_top, pad_bot = 46, 30
+        bx = 30                       # left margin holds the tick labels
+        bw = w - bx - 12
+        by = pad_top
+        bh = h - pad_top - pad_bot
 
         def y_of(a: float) -> float:
             return by + bh * (1.0 - min(max(a, 0.0), _DISPLAY_MAX) / _DISPLAY_MAX)
@@ -59,10 +61,21 @@ class BarWidget(QtWidgets.QWidget):
         p.setBrush(grad)
         p.drawRoundedRect(QtCore.QRectF(bx, fill_top, bw, by + bh - fill_top), 6, 6)
 
-        # 1.0 reference line
-        p.setPen(QtGui.QPen(QtGui.QColor(200, 200, 210, 140), 1, QtCore.Qt.PenStyle.DashLine))
-        y1 = y_of(1.0)
-        p.drawLine(int(bx), int(y1), int(bx + bw), int(y1))
+        # scale: ticks at 0/.25/.5/.75/1.0, labels at 0/.5/1.0
+        f = p.font()
+        f.setPointSize(7)
+        f.setBold(False)
+        p.setFont(f)
+        for a in (0.0, 0.25, 0.5, 0.75, 1.0):
+            y = y_of(a)
+            major = a in (0.0, 0.5, 1.0)
+            p.setPen(QtGui.QPen(QtGui.QColor(180, 185, 195, 170 if major else 90), 1))
+            p.drawLine(int(bx - (6 if major else 3)), int(y), int(bx), int(y))
+            if major:
+                p.setPen(QtGui.QColor(190, 195, 205))
+                p.drawText(QtCore.QRectF(0, y - 8, bx - 8, 16),
+                           QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter,
+                           f"{a:.1f}")
 
         # target marker band (delayed fade-in)
         if self.target is not None and self.marker_alpha > 0.01:
@@ -77,13 +90,20 @@ class BarWidget(QtWidgets.QWidget):
             p.setPen(QtGui.QPen(QtGui.QColor(150, 255, 170, a), 2))
             p.drawLine(int(bx), int(yc), int(bx + bw), int(yc))
 
-        # labels
-        p.setPen(QtGui.QColor(230, 230, 235))
-        f = p.font()
+        # top: side label + current value
+        p.setPen(QtGui.QColor(235, 235, 240))
         f.setPointSize(11)
         f.setBold(True)
         p.setFont(f)
-        p.drawText(QtCore.QRectF(0, 4, w, 22), QtCore.Qt.AlignmentFlag.AlignCenter, self.side)
+        p.drawText(QtCore.QRectF(0, 2, w, 18), QtCore.Qt.AlignmentFlag.AlignCenter, self.side)
+        f.setPointSize(12)
+        p.setPen(QtGui.QColor(150, 220, 255))
+        p.setFont(f)
+        p.drawText(QtCore.QRectF(0, 22, w, 20), QtCore.Qt.AlignmentFlag.AlignCenter,
+                   f"{self.value:.2f}")
+
+        # bottom: role
+        p.setPen(QtGui.QColor(220, 220, 228))
         f.setPointSize(9)
         f.setBold(False)
         p.setFont(f)

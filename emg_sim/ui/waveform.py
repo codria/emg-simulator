@@ -32,8 +32,13 @@ class WaveformPanel(QtWidgets.QWidget):
         p.setYRange(-2.2, 2.2)
         p.setMouseEnabled(False, False)
         p.hideAxis("bottom")
-        p.hideAxis("left")
         p.setMenuEnabled(False)
+        ax = p.getAxis("left")          # scale ticks (arbitrary EMG units)
+        ax.setTicks([[(-2, "-2"), (-1, "-1"), (0, "0"), (1, "1"), (2, "2")]])
+        ax.setStyle(tickTextOffset=3)
+        ax.setPen(pg.mkPen((120, 125, 140)))
+        ax.setTextPen(pg.mkPen((150, 155, 170)))
+        p.showGrid(x=False, y=True, alpha=0.15)
         return p
 
     def update_state(self, wave_left: np.ndarray, wave_right: np.ndarray) -> None:
