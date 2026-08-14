@@ -65,6 +65,28 @@ _BRIGHT = ShaderProgram("brightarm", [
 
 from . import theme
 
+# Flat, unlit color — for the projected floor shadow (C++ 'uFlatColor' mode) and
+# the solid floor board. Ignores normals; just outputs the mesh colour.
+_FLAT = ShaderProgram("flat", [
+    VertexShader("""
+        uniform mat4 u_mvp;
+        attribute vec4 a_position;
+        attribute vec4 a_color;
+        varying vec4 v_color;
+        void main() {
+            v_color = a_color;
+            gl_Position = u_mvp * a_position;
+        }
+    """),
+    FragmentShader("""
+        #ifdef GL_ES
+        precision mediump float;
+        #endif
+        varying vec4 v_color;
+        void main() { gl_FragColor = v_color; }
+    """),
+])
+
 
 def _rgb(c, a=1.0):
     return (c[0] / 255.0, c[1] / 255.0, c[2] / 255.0, a)
@@ -94,11 +116,21 @@ class Scene3D(gl.GLViewWidget):
         # operation plane — otherwise raising z_plane buries the arm in the pedestal.
         z_floor = -0.05
 
+        self._floor_z = z_floor
+        # solid floor board (cool slate) so the projected shadow reads on a surface
+        s = 0.9
+        board_v = np.array([[-s, -s, z_floor], [s, -s, z_floor], [s, s, z_floor],
+                            [-s, -s, z_floor], [s, s, z_floor], [-s, s, z_floor]], float)
+        board = gl.GLMeshItem(
+            meshdata=gl.MeshData(vertexes=board_v, faces=np.arange(6).reshape(-1, 3)),
+            smooth=False, color=(0.19, 0.20, 0.25, 1.0), shader=_FLAT, glOptions="opaque")
+        self.addItem(board)
+        # grid lines a hair above the board
         floor = gl.GLGridItem()
         floor.setSize(1.8, 1.8)
         floor.setSpacing(0.1, 0.1)
-        floor.translate(0, 0, z_floor)
-        floor.setColor((120, 120, 140, 110))
+        floor.translate(0, 0, z_floor + 0.001)
+        floor.setColor((120, 126, 154, 90))
         self.addItem(floor)
 
         # pedestal: floor up to the arm base (top face at z=0)
@@ -146,15 +178,21 @@ class Scene3D(gl.GLViewWidget):
 
         self._update_fan()
 
-        # parametric arm parts
+        # parametric arm parts (+ a flattened dark copy per part = planar floor shadow)
         self.parts = []
+        self.shadows = []
         for part in armmesh.build_parts():
             v = part["verts"]
-            md = gl.MeshData(vertexes=v, faces=np.arange(len(v)).reshape(-1, 3))
-            item = gl.GLMeshItem(meshdata=md, smooth=False, color=(*part["color"], 1.0),
-                                 shader=_BRIGHT, glOptions="opaque")
+            faces = np.arange(len(v)).reshape(-1, 3)
+            item = gl.GLMeshItem(meshdata=gl.MeshData(vertexes=v, faces=faces), smooth=False,
+                                 color=(*part["color"], 1.0), shader=_BRIGHT, glOptions="opaque")
             self.addItem(item)
             self.parts.append((item, part["parent"], part["xform"]))
+            sh = gl.GLMeshItem(meshdata=gl.MeshData(vertexes=v, faces=faces), smooth=False,
+                               color=(0.04, 0.04, 0.06, 0.35), shader=_FLAT, glOptions="translucent")
+            sh.setDepthValue(5)             # after opaque, under the fan fill
+            self.addItem(sh)
+            self.shadows.append((sh, part["parent"], part["xform"]))
 
         tmd = gl.MeshData.sphere(rows=14, cols=14, radius=cfg.game.reach_dist)
         self.target = gl.GLMeshItem(meshdata=tmd, smooth=True, color=_C_TARGET,
@@ -227,6 +265,13 @@ class Scene3D(gl.GLViewWidget):
         for item, parent, xform in self.parts:
             m = Ts[parent + 1] @ xform
             item.setTransform(pg.Transform3D(*m.flatten()))
+        # planar shadow: flatten each part's world transform onto the floor plane
+        # (Z-up analogue of the C++ scale(1,0,1)·translate(y_bias))
+        fz = self._floor_z + 0.002
+        flat = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, fz], [0, 0, 0, 1]], float)
+        for sh, parent, xform in self.shadows:
+            m = flat @ (Ts[parent + 1] @ xform)
+            sh.setTransform(pg.Transform3D(*m.flatten()))
         self._place(self.target, target_xyz)
         self._place(self.tipmark, tip)
         # reach-region ring around the target
