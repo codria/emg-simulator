@@ -2,7 +2,7 @@
 
 EMG-driven robot-arm reaching game for an open-campus exhibit. Two forearm EMG
 channels drive a simulated 6-DOF robot arm in polar `(r, θ)` control: left arm →
-reach `r`, right arm → azimuth `θ`. Full-Python implementation.
+azimuth `θ`, right arm → reach `r` (swappable in config). Full-Python implementation.
 
 Design and rationale: [`docs/emg_robotarm_exhibit_design.md`](docs/emg_robotarm_exhibit_design.md).
 
@@ -28,16 +28,19 @@ the BioRadio acquisition (pythonnet) and band-pass/notch filtering.
 
 ## Setup
 
-Uses the conda env `env_emg-simulator` (Python 3.13).
+New machine? See **[docs/QUICKSTART.md](docs/QUICKSTART.md)** for a full
+clone-to-run walkthrough (venv/conda, Windows long-path note, troubleshooting).
+In short (Python 3.10–3.13):
 
 ```bash
-conda activate env_emg-simulator
+python -m venv .venv && source .venv/Scripts/activate   # or: conda create -n env_emg-simulator python=3.13 -y && conda activate env_emg-simulator
 pip install -r requirements.txt
 ```
 
-The MVP needs `numpy` / `scipy` / `pytest` plus the rendering stack
-(`PySide6` / `pyqtgraph` / `PyOpenGL`). The BioRadio acquisition dependency
-(`pythonnet`) is deferred.
+`requirements.txt` installs everything needed to run the app **and** the tests
+(numpy / scipy / PySide6 / pyqtgraph / PyOpenGL / pytest; plus `pythonnet` on
+Windows for the optional BioRadio path). No hardware is required — it starts on a
+dummy input source.
 
 ## Run the app (MVP)
 
@@ -47,19 +50,22 @@ python -m emg_sim.app --auto     # start in attract / demo mode
 ```
 
 Controls: hold **F** / **J** to flex the left / right arm (or use the drive
-sliders); **B** captures the baseline (力を抜いて); **R** resets the session;
-**D** toggles attract/demo; **S** opens the settings window (live sliders for
-RMS window, marker delay, r-range, judging thresholds, … + JSON save/load).
+sliders); **B** captures the baseline (力を抜いて); **R** resets the round;
+**D** toggles attract/demo; **S** opens the settings window (live sliders — RMS
+window, EMA, soft-sat gain, scale floor, reach tolerances r/θ, … + JSON save/load);
+**C** opens the input-source dialog (Dummy ↔ BioRadio). Drag / wheel to orbit /
+zoom the 3D scene.
 A headless screenshot for CI/preview:
 
 ```bash
 python -m emg_sim.app --screenshot out.png --frames 240
 ```
 
-Optional reach sound: drop a WAV at `assets/sfx/reach.wav` (gitignored and not
-redistributed — see [`docs/decisions.md`](docs/decisions.md); e.g. convert a
-soundeffect-lab.info SE with `ffmpeg -i in.mp3 -ar 44100 -ac 1 assets/sfx/reach.wav`).
-Without it the app runs silently.
+Sound: the app **synthesizes** a subtle zone-enter click and a reach chime at
+startup, so it has sound out of the box (no files needed). For the nicer original
+SFX, drop WAVs at `assets/sfx/enter.wav` and `assets/sfx/reach.wav` (gitignored
+效果音ラボ material — see [`docs/decisions.md`](docs/decisions.md)); the app
+prefers them when present. Any of this needs a working audio output device.
 
 ## Tests
 
