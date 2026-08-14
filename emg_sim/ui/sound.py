@@ -1,9 +1,10 @@
 """One-shot sound effect with graceful fallback.
 
-Uses QtMultimedia's low-latency QSoundEffect (WAV). If the file is missing or no
-audio backend is available, it degrades to a silent no-op so the app still runs.
-The bundled reach sound is not committed (效果音ラボ redistribution terms) — see
-docs/decisions.md; drop a WAV at the configured path to enable it.
+Uses QtMultimedia's low-latency QSoundEffect (WAV). Source priority:
+  1. the configured asset WAV if present (the real 效果音ラボ sound — not committed,
+     see docs/decisions.md: their terms forbid redistributing the files);
+  2. else a synthesized fallback (`synth` kind) so a fresh clone still has sound;
+  3. else a silent no-op, so the app always runs.
 """
 
 from __future__ import annotations
@@ -12,19 +13,22 @@ from pathlib import Path
 
 
 class Sfx:
-    def __init__(self, path, volume: float = 0.7):
+    def __init__(self, path, volume: float = 0.7, synth: str | None = None):
         self._eff = None
-        if not path:
+        src = None
+        if path and Path(path).exists():
+            src = str(Path(path).resolve())        # the real (uncommitted) asset wins
+        elif synth:
+            from . import sfx_synth                 # fresh-clone fallback: synthesize it
+            src = sfx_synth.ensure(synth)
+        if src is None:
             return
         try:
-            p = Path(path)
-            if not p.exists():
-                return
             from PySide6.QtCore import QUrl
             from PySide6.QtMultimedia import QSoundEffect
 
             eff = QSoundEffect()
-            eff.setSource(QUrl.fromLocalFile(str(p.resolve())))
+            eff.setSource(QUrl.fromLocalFile(src))
             eff.setVolume(float(volume))
             self._eff = eff
         except Exception:

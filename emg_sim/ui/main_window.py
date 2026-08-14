@@ -42,8 +42,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.scene = Scene3D(cfg)
         self.wave_left = WaveformPlot("Left Arm EMG", theme.L_COLOR, cfg)
         self.wave_right = WaveformPlot("Right Arm EMG", theme.R_COLOR, cfg)
-        self.sfx = Sfx(cfg.ui.sfx_reach, cfg.ui.sfx_volume) if cfg.ui.sfx_enabled else Sfx(None)
-        self.sfx_enter = Sfx(cfg.ui.sfx_enter, cfg.ui.sfx_volume) if cfg.ui.sfx_enabled else Sfx(None)
+        # real WAV if present (exhibit machine), else a synthesized fresh-clone fallback
+        self.sfx = Sfx(cfg.ui.sfx_reach, cfg.ui.sfx_volume, synth="reach") if cfg.ui.sfx_enabled else Sfx(None)
+        self.sfx_enter = Sfx(cfg.ui.sfx_enter, cfg.ui.sfx_volume, synth="enter") if cfg.ui.sfx_enabled else Sfx(None)
         self._prev_hold_frac = 0.0     # rising edge of hold_frac = tip entered the zone
 
         self.sl_left = QtWidgets.QSlider(QtCore.Qt.Orientation.Vertical)
