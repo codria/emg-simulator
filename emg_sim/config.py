@@ -40,10 +40,11 @@ class NormalizeConfig:
 
 @dataclass
 class ControlConfig:
-    # Reachable band (annulus) is r∈[0.34, 0.73] at the shoulder plane with a near-
-    # straight elbow — the arm can't fold to its own base (hence r_min>0) and now
-    # extends near full reach instead of staying bent. Defaults sit inside the band.
-    r_min: float = 0.36
+    # NOTE: with the default elbow bias the arm only folds inward to ~0.29 (outer
+    # reach ~0.73). r_min=0.15 is BELOW that, so at rest the arm sits at ~0.29 —
+    # a small dead zone at the bottom of the mapping and an unreachable inner fan.
+    # Raise r_min toward ~0.30 for a clean, fully-reachable feel.
+    r_min: float = 0.15
     r_max: float = 0.72
     theta_min: float = 0.0
     theta_max: float = math.pi

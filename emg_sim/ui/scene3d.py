@@ -13,6 +13,7 @@ from __future__ import annotations
 import numpy as np
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
+from PySide6 import QtGui
 from pyqtgraph.opengl.shaders import FragmentShader, ShaderProgram, VertexShader
 
 from . import armmesh
@@ -120,9 +121,12 @@ class Scene3D(gl.GLViewWidget):
         self._theta_ref = gl.GLLinePlotItem(width=1.2, antialias=True, color=_C_TH_REF)
         for it in (self._theta_ref, self._theta_arc, self._r_line):
             self.addItem(it)
+        ital = QtGui.QFont("Times New Roman", 16)
+        ital.setItalic(True)
+        ital.setBold(True)
         try:
-            self._r_label = gl.GLTextItem(text="r", color=(*theme.R_COLOR, 255))
-            self._theta_label = gl.GLTextItem(text="θ", color=(*theme.L_COLOR, 255))
+            self._r_label = gl.GLTextItem(text="r", color=(*theme.R_COLOR, 255), font=ital)
+            self._theta_label = gl.GLTextItem(text="θ", color=(*theme.L_COLOR, 255), font=ital)
             self.addItem(self._r_label)
             self.addItem(self._theta_label)
         except Exception:
@@ -213,7 +217,9 @@ class Scene3D(gl.GLViewWidget):
         z = self.cfg.control.z_plane
         tx, ty = float(tip[0]), float(tip[1])
         r = float(np.hypot(tx, ty))
-        ang = float(np.arctan2(ty, tx))
+        # clamp into the fan so the arc always sweeps the front, never flips back
+        ang = float(np.clip(np.arctan2(ty, tx),
+                            self.cfg.control.theta_min, self.cfg.control.theta_max))
         self._r_line.setData(pos=np.array([[0.0, 0.0, z], [tx, ty, z]]))
         ra = min(0.20, r * 0.5)
         aa = np.linspace(self.cfg.control.theta_min, ang, 24)
