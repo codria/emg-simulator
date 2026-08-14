@@ -40,10 +40,9 @@ class NormalizeConfig:
 
 @dataclass
 class ControlConfig:
-    # NOTE: with the default elbow bias the arm only folds inward to ~0.29 (outer
-    # reach ~0.73). r_min=0.15 is BELOW that, so at rest the arm sits at ~0.29 —
-    # a small dead zone at the bottom of the mapping and an unreachable inner fan.
-    # Raise r_min toward ~0.30 for a clean, fully-reachable feel.
+    # Reachable band ≈ [0.14, 0.73] at the shoulder plane: with the adaptive elbow
+    # bias below, the arm folds in near the base and straightens out far, so the
+    # WHOLE physical range is usable (no implementation-imposed inner limit).
     r_min: float = 0.15
     r_max: float = 0.72
     theta_min: float = 0.0
@@ -55,11 +54,13 @@ class ControlConfig:
     # this the arm never reaches r_max (and never visibly extends). Rescale so
     # full effort uses the whole reach; control below stays smooth.
     reach_full_activation: float = 0.9
-    # elbow-up IK bias. Small target so the arm nearly straightens at max reach
-    # (elbow→0 is the true max length, r≈0.73) while a little bias keeps it off the
-    # fully-extended singularity for stable control. C++ used 1.5/0.3 (elbow stayed
-    # bent ~63° even at max). Live-tunable in the settings window.
-    elbow_target: float = 0.3
+    # Adaptive elbow-up bias: fold when reaching near (r→r_min), straighten when
+    # reaching far (r→r_max), interpolated by r. This lets the arm use its full
+    # physical range instead of the ~0.29 inner limit a fixed bias imposed — the
+    # limit was a solver artifact, not the arm. Also gives a natural fold/extend
+    # look. C++ used a fixed 1.5/0.3.
+    elbow_target_near: float = 2.0   # at r_min: elbow folded (~144°)
+    elbow_target_far: float = 0.1    # at r_max: elbow nearly straight
     elbow_gain: float = 0.15
 
 

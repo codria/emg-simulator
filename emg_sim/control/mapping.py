@@ -30,10 +30,14 @@ class PolarController:
             self.arm.solve_ik(self.target, self._ik_opts())
 
     def _ik_opts(self) -> IKOptions:
-        # rebuilt each call so elbow tuning from the settings window is live
+        # adaptive elbow: fold when reaching near, straighten when reaching far,
+        # interpolated by the current commanded r (uses the arm's full range).
         o = IKOptions()
-        o.elbow_target = self.cfg.elbow_target
-        o.elbow_gain = self.cfg.elbow_gain
+        c = self.cfg
+        span = max(1e-6, c.r_max - c.r_min)
+        norm = min(1.0, max(0.0, (self.r - c.r_min) / span))
+        o.elbow_target = c.elbow_target_near * (1.0 - norm) + c.elbow_target_far * norm
+        o.elbow_gain = c.elbow_gain
         return o
 
     def _split(self, a_left: float, a_right: float) -> tuple[float, float]:
