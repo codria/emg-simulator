@@ -19,8 +19,6 @@ from .dsp import RMSPipeline, Normalizer
 from .control import PolarController
 from .game import ReachingGame
 
-_ACTIVE_THRESH = 0.15  # activation above this counts as "someone is flexing"
-
 
 class Engine:
     def __init__(self, cfg: Config | None = None, source: InputSource | None = None,
@@ -40,7 +38,6 @@ class Engine:
         self.event = None
 
         self.t = 0.0
-        self.idle_t = 0.0
         self.attract = False
 
         # per-sample history of the normalized activation (the value that actually
@@ -56,7 +53,7 @@ class Engine:
 
         if self.norm.capturing:
             self.norm.feed_baseline(self.amp)
-        self.activation = self.norm.normalize(self.amp)
+        self.activation = self.norm.normalize(self.amp, dt)
 
         k = raw.shape[0] if raw.size else 0
         if k:
@@ -67,20 +64,9 @@ class Engine:
             float(self.activation[0]), float(self.activation[1])
         )
         self.event = self.game.update(self.tip, dt)
-        self._update_idle(dt)
         return self.event
 
-    def _update_idle(self, dt: float) -> None:
-        if self.attract:
-            return  # leave attract only on real user input (notify_user_input)
-        if float(np.max(self.activation)) > _ACTIVE_THRESH:
-            self.idle_t = 0.0
-        else:
-            self.idle_t += dt
-            if self.idle_t >= self.cfg.game.attract_idle_sec:
-                self.set_attract(True)
-
-    # -- attract mode ------------------------------------------------------
+    # -- attract mode (demo) — entered only on demand (D key), never on idle -----
     def set_attract(self, on: bool) -> None:
         self.attract = on
         if isinstance(self.source, DummySource):
@@ -88,7 +74,6 @@ class Engine:
 
     def notify_user_input(self) -> None:
         """Call on real user activity (keypress / slider / device signal)."""
-        self.idle_t = 0.0
         if self.attract:
             self.set_attract(False)
 

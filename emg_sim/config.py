@@ -34,8 +34,11 @@ class NormalizeConfig:
     baseline_sec: float = 2.0      # "力を抜いて" baseline capture duration
     soft_sat: bool = True          # tanh soft saturation
     sat_gain: float = 1.6          # activation = tanh(sat_gain * x / scale)
-    adapt_rate: float = 0.05       # online upward scale adaptation (0 = off)
-    fallback_scale: float = 0.5    # fixed-gain fallback so it always moves
+    adapt_rate: float = 0.05       # scale adaptation speed toward the peak (0 = off)
+    fallback_scale: float = 0.5    # fixed-gain fallback / floor so it always moves
+    peak_halflife_sec: float = 10.0  # leaky-peak decay: stale highs fade (≈ recent-max
+                                     # window) so a one-off artifact / max clench doesn't
+                                     # latch the scale up forever and block the extremes
 
 
 @dataclass
@@ -74,7 +77,6 @@ class GameConfig:
     hold_sec: float = 0.4          # dwell time to count as reached (0.3–0.5)
     targets_per_round: int = 5     # 5 reaches → time → reset
     min_target_sep: float = 0.15   # next target at least this far from current
-    attract_idle_sec: float = 8.0  # idle → attract mode
     # Inset targets away from every fan edge (fraction of each range), since the
     # extremes are hard to hold: r_max ≈ full extension/effort, r_min ≈ rest,
     # θ_min/θ_max ≈ extreme sweep. Applies to r AND θ.

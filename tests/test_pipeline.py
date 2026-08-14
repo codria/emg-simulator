@@ -82,13 +82,30 @@ def test_normalize_baseline_subtracts():
 
 
 def test_normalize_adaptation_upward_only():
+    # with no time passing (dt = 0) the leaky peak doesn't decay → upward-only
     n = Normalizer(Config())
     for _ in range(50):
         n.normalize(np.array([1.0, 1.0]))
     hi = n.scale.copy()
     for _ in range(50):
         n.normalize(np.array([0.05, 0.05]))
-    assert np.all(n.scale >= hi - 1e-9)  # never decreases
+    assert np.all(n.scale >= hi - 1e-9)  # never decreases without a time step
+
+
+def test_normalize_peak_decays():
+    # a leaky peak lets the scale recover after a one-off high, so the extremes
+    # stay reachable (dt > 0 decays the peak; halflife shortened for the test)
+    cfg = Config()
+    cfg.normalize.peak_halflife_sec = 2.0
+    n = Normalizer(cfg)
+    for _ in range(30):  # brief high effort latches the scale up
+        n.normalize(np.array([2.0, 2.0]), dt=1 / 60)
+    hi = n.scale.copy()
+    assert np.all(hi > cfg.normalize.fallback_scale)
+    for _ in range(600):  # ~10 s of lower sustained effort (>> halflife)
+        n.normalize(np.array([0.3, 0.3]), dt=1 / 60)
+    assert np.all(n.scale < hi - 1e-3)                             # recovered downward
+    assert np.all(n.scale >= cfg.normalize.fallback_scale - 1e-9)  # not below the floor
 
 
 # -- control mapping --------------------------------------------------------
@@ -177,7 +194,7 @@ def test_engine_full_drive_reaches_out():
 def test_engine_zero_drive_stays_in():
     eng = Engine(seed=4)
     eng.source.set_drive(0.0, 0.0)
-    for _ in range(120):  # < attract idle timeout
+    for _ in range(600):  # 10 s idle — attract is D-key only now, no auto-enter
         eng.step(1 / 60)
     # retracted toward the inner edge (arm folds to its inner reach limit, which
     # may exceed r_min if r_min is set below what the arm can fold to)
@@ -188,10 +205,9 @@ def test_engine_zero_drive_stays_in():
 def test_engine_attract_toggle():
     eng = Engine(seed=5)
     eng.source.set_drive(0.0, 0.0)
-    eng.cfg.game.attract_idle_sec = 1.0
-    for _ in range(120):  # 2 s idle → attract
-        eng.step(1 / 60)
-    assert eng.attract
-    assert eng.source.mode == "auto"
-    eng.notify_user_input()
+    eng.step(1 / 60)
+    assert not eng.attract                  # idle never auto-enters attract
+    eng.set_attract(True)                   # D key enters demo
+    assert eng.attract and eng.source.mode == "auto"
+    eng.notify_user_input()                 # any real input exits demo
     assert not eng.attract and eng.source.mode == "manual"

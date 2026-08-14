@@ -2,8 +2,10 @@
 
 Design "合わせ技":
   * baseline (脱力) subtraction — captured on command, more reliable than MVC
-  * scale division with a fallback fixed gain so it always moves
-  * upward-only, slow online adaptation of the scale to the observed peak
+  * scale division with a fallback fixed gain (also a floor) so it always moves
+  * slow adaptation of the scale toward a *leaky* peak — a one-off artifact / max
+    clench decays out instead of latching the gain up forever (which would block
+    the extremes); the scale never drops below the fallback floor
   * tanh soft saturation so a loose calibration never pegs hard
 """
 
@@ -20,12 +22,20 @@ class Normalizer:
         self._peak = np.zeros(2)
         self._cap = None  # baseline-capture accumulator
 
-    def normalize(self, amp: np.ndarray) -> np.ndarray:
+    def normalize(self, amp: np.ndarray, dt: float = 0.0) -> np.ndarray:
         x = np.maximum(0.0, amp - self.baseline)
         if self.cfg.adapt_rate > 0.0:
+            # leaky peak: a "recent-max" high-water mark that slowly forgets stale
+            # highs, so a one-off artifact / max clench can't latch the gain up for
+            # good (dt = frame time; no decay when called without it, e.g. in tests).
+            hl = self.cfg.peak_halflife_sec
+            if hl > 0.0 and dt > 0.0:
+                self._peak = self._peak * (0.5 ** (dt / hl))
             self._peak = np.maximum(self._peak, x)
-            # upward-only, slow
-            self.scale = self.scale + self.cfg.adapt_rate * np.maximum(0.0, self._peak - self.scale)
+            # ease the scale toward the leaky peak — both ways — but never below the
+            # fallback floor (keeps it from getting over-sensitive when idle).
+            target = np.maximum(self._peak, self.cfg.fallback_scale)
+            self.scale = self.scale + self.cfg.adapt_rate * (target - self.scale)
         scale = np.maximum(self.scale, 1e-6)
         a = x / scale
         if self.cfg.soft_sat:
