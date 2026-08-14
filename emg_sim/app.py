@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from PySide6 import QtWidgets
+from PySide6 import QtGui, QtWidgets
 
 from .config import Config
 from .engine import Engine
@@ -56,6 +56,9 @@ def main(argv=None) -> int:
     from .acquisition import make_source
     source = make_source(cfg)
 
+    fmt = QtGui.QSurfaceFormat()
+    fmt.setSamples(4)                    # 4x MSAA (anti-aliasing) for the 3D scene
+    QtGui.QSurfaceFormat.setDefaultFormat(fmt)
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv[:1])
 
     eng = Engine(cfg, source=source)

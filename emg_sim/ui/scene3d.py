@@ -104,8 +104,8 @@ def _rgb(c, a=1.0):
     return (c[0] / 255.0, c[1] / 255.0, c[2] / 255.0, a)
 
 
-_C_TARGET = _rgb(theme.TARGET, 0.9)
-_C_REGION = _rgb(theme.TARGET, 1.0)
+_C_REGION = _rgb(theme.TARGET, 1.0)          # target outline circle
+_C_TARGET_FILL = _rgb(theme.TARGET, 0.22)    # flat target disc fill (translucent)
 _C_TIP = _rgb(theme.TIP, 1.0)
 _C_FAN = _rgb(theme.FAN, 1.0)
 _C_FAN_FILL = _rgb(theme.FAN, 0.16)
@@ -214,16 +214,16 @@ class Scene3D(gl.GLViewWidget):
             self.addItem(sh)
             self.shadows.append((sh, part["parent"], part["xform"]))
 
-        tmd = gl.MeshData.sphere(rows=14, cols=14, radius=cfg.game.reach_dist)
-        self.target = gl.GLMeshItem(meshdata=tmd, smooth=True, color=_C_TARGET,
-                                    shader=_BRIGHT, glOptions="translucent")
-        self.addItem(self.target)
-        # depth-tested (unlike the default additive lines) so the arm occludes the
-        # reach ring when it passes in front — it's a world marker, not an overlay
-        self._region = gl.GLLinePlotItem(width=2.0, antialias=True, color=_C_REGION,
-                                         glOptions="translucent")
-        self._region.setDepthValue(20)
-        self.addItem(self._region)
+        # target = a flat filled disc + outline on the operation plane (radius =
+        # reach tolerance), like the fan — no floating sphere. Rebuilt each frame.
+        self._target_fill = gl.GLMeshItem(smooth=False, color=_C_TARGET_FILL,
+                                          shader=_FLAT, glOptions=_FILL_GL, drawEdges=False)
+        self._target_fill.setDepthValue(12)
+        self.addItem(self._target_fill)
+        self._target_ring = gl.GLLinePlotItem(width=2.5, antialias=True, color=_C_REGION,
+                                              glOptions=_LINE_GL)
+        self._target_ring.setDepthValue(22)
+        self.addItem(self._target_ring)
 
         pmd = gl.MeshData.sphere(rows=8, cols=8, radius=0.018)
         self.tipmark = gl.GLMeshItem(meshdata=pmd, smooth=True, color=_C_TIP, shader=_BRIGHT)
@@ -293,15 +293,18 @@ class Scene3D(gl.GLViewWidget):
         for sh, parent, xform in self.shadows:
             m = flat @ (Ts[parent + 1] @ xform)
             sh.setTransform(pg.Transform3D(*m.flatten()))
-        self._place(self.target, target_xyz)
         self._place(self.tipmark, tip)
-        # reach-region ring around the target
+        # target = filled disc + outline on the operation plane (radius = reach_dist)
         rr = self.cfg.game.reach_dist
-        th = np.linspace(0, 2 * np.pi, 48)
-        ring = np.column_stack([target_xyz[0] + rr * np.cos(th),
-                                target_xyz[1] + rr * np.sin(th),
-                                np.full(48, self.cfg.control.z_plane)])
-        self._region.setData(pos=ring)
+        z = self.cfg.control.z_plane
+        n = 48
+        th = np.linspace(0, 2 * np.pi, n)
+        rim = np.column_stack([target_xyz[0] + rr * np.cos(th),
+                               target_xyz[1] + rr * np.sin(th), np.full(n, z)])
+        verts = np.vstack([[target_xyz[0], target_xyz[1], z], rim])   # 0=center, 1..n=rim
+        faces = np.array([[0, i, i + 1] for i in range(1, n)])
+        self._target_fill.setMeshData(vertexes=verts, faces=faces)
+        self._target_ring.setData(pos=rim)
 
         # r / θ overlay for the live arm TIP (teach polar coords; moves as you flex)
         z = self.cfg.control.z_plane
