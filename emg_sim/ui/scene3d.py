@@ -148,7 +148,7 @@ class Scene3D(gl.GLViewWidget):
         # pedestal: floor up to the arm base (top face at z=0)
         ped_v, ped_n = armmesh.cylinder_tris(0.09, 0.05, 48)
         ped_md = gl.MeshData(vertexes=ped_v, faces=np.arange(len(ped_v)).reshape(-1, 3))
-        ped_md._vertexNormals = ped_n
+        ped_md._vertexNormals = ped_n.astype(np.float32)   # float32: see arm-parts note below
         ped = gl.GLMeshItem(meshdata=ped_md, smooth=True,
                             color=(0.34, 0.36, 0.42, 1.0), shader=_BRIGHT, glOptions="opaque")
         ped.translate(0, 0, z_floor + 0.025)  # spans -0.05..0.0
@@ -203,7 +203,10 @@ class Scene3D(gl.GLViewWidget):
             v = part["verts"]
             faces = np.arange(len(v)).reshape(-1, 3)
             md = gl.MeshData(vertexes=v, faces=faces)
-            md._vertexNormals = part["normals"]   # analytic smooth normals → round tubes
+            # analytic smooth normals → round tubes. MUST be float32: injecting via
+            # _vertexNormals bypasses pyqtgraph's dtype conversion, and the VBO is read
+            # as GL_FLOAT — a float64 array uploads as garbage (chaotic shading).
+            md._vertexNormals = part["normals"].astype(np.float32)
             item = gl.GLMeshItem(meshdata=md, smooth=True,
                                  color=(*part["color"], 1.0), shader=_BRIGHT, glOptions="opaque")
             self.addItem(item)
