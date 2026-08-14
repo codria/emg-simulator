@@ -228,7 +228,7 @@ scale ╱‾‾‾‾‾‾‾╲_追って戻る___      (peak へ両方向 EMA
 | 較正時間 | `baseline_sec` | 2.0 s | — | 脱力ベースライン取得の秒数 |
 | ソフト飽和 gain | `sat_gain` | 1.6 | 0.5–3.0 | 大=軽い力で上限へ、小=微調整しやすい |
 | 適応率 | `adapt_rate` | 0.05 | 0–0.2 | scale が peak を追う速度（0=固定） |
-| peak 半減期 | `peak_halflife_sec` | 45 s | 3–60 | 大=基準が長く残る／小=速く戻る（回復 ~2倍） |
+| peak 半減期 | `peak_halflife_sec` | 45 s | 3–180 | 大=基準が長く残る／小=速く戻る（回復 ~2倍） |
 | フォールバック | `fallback_scale` | 0.5 | — | scale の初期値・下限（保険） |
 
 ### マッピング・幾何（`ControlConfig`）

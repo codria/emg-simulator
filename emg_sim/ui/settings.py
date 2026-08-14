@@ -77,7 +77,7 @@ class SettingsDialog(QtWidgets.QDialog):
                 ("EMA α", cfg.signal, "ema_alpha", 0.05, 1.0, 2, rebuild),
                 ("ソフト飽和 gain", cfg.normalize, "sat_gain", 0.5, 3.0, 2, None),
                 ("オンライン適応率", cfg.normalize, "adapt_rate", 0.0, 0.2, 3, None),
-                ("peak 半減期 (s)", cfg.normalize, "peak_halflife_sec", 3.0, 60.0, 1, None),
+                ("peak 半減期 (s)", cfg.normalize, "peak_halflife_sec", 3.0, 180.0, 1, None),
             ]),
             ("操作範囲・アーム", [
                 ("r_min", cfg.control, "r_min", 0.23, 0.60, 2, lambda: self._clamp_r("r_min")),

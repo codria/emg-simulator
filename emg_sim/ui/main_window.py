@@ -30,7 +30,7 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
         self.engine = engine
         self.cfg = cfg
-        self.setWindowTitle("EMG ロボットアーム 到達ゲーム (MVP)")
+        self.setWindowTitle("EMG ロボットアーム 到達ゲーム — Created by Maeda")
 
         self._keys: set[str] = set()
         self._key_drive = np.zeros(2)
