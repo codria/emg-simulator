@@ -72,6 +72,7 @@ class SettingsDialog(QtWidgets.QDialog):
             ("r_min", cfg.control, "r_min", 0.0, 0.60, 2, lambda: self._clamp_r("r_min")),
             ("r_max", cfg.control, "r_max", 0.30, 0.90, 2, lambda: self._clamp_r("r_max")),
             ("肘上げ target (低=伸展)", cfg.control, "elbow_target", 0.3, 1.6, 2, None),
+            ("目標マージン (端除外)", cfg.game, "target_margin", 0.0, 0.4, 2, None),
             ("到達距離 (m)", cfg.game, "reach_dist", 0.02, 0.12, 3, None),
             ("滞在時間 (s)", cfg.game, "hold_sec", 0.1, 1.0, 2, None),
             ("マーカー遅延 (s)", cfg.ui, "marker_delay_sec", 0.0, 8.0, 1, None),

@@ -152,6 +152,18 @@ def test_game_target_in_fan_and_separated():
         prev = g.target_xyz.copy()
 
 
+def test_game_target_respects_edge_margin():
+    cfg = Config()
+    c, m = cfg.control, cfg.game.target_margin
+    dr = (c.r_max - c.r_min) * m
+    dt = (c.theta_max - c.theta_min) * m
+    g = ReachingGame(cfg, seed=1)
+    for _ in range(200):
+        r, th = g._rand_rt()
+        assert c.r_min + dr - 1e-9 <= r <= c.r_max - dr + 1e-9
+        assert c.theta_min + dt - 1e-9 <= th <= c.theta_max - dt + 1e-9
+
+
 # -- engine integration -----------------------------------------------------
 def test_engine_full_drive_reaches_out():
     eng = Engine(seed=3)

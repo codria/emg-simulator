@@ -69,6 +69,10 @@ class GameConfig:
     targets_per_round: int = 5     # 5 reaches → time → reset
     min_target_sep: float = 0.15   # next target at least this far from current
     attract_idle_sec: float = 8.0  # idle → attract mode
+    # Inset targets away from every fan edge (fraction of each range), since the
+    # extremes are hard to hold: r_max ≈ full extension/effort, r_min ≈ rest,
+    # θ_min/θ_max ≈ extreme sweep. Applies to r AND θ.
+    target_margin: float = 0.12
 
 
 @dataclass
