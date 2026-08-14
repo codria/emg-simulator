@@ -108,22 +108,20 @@ function tanhFig() {
 
 // ---------------------------------------------------------------- adaptation
 function adaptFig() {
-  const W = 700, H = 400, L = 60, R = 150, Tp = 26, B = 54
+  const W = 720, H = 400, L = 58, R = 168, Tp = 26, B = 54
   const x0 = L, x1 = W - R, y0 = H - B, y1 = Tp
-  const FR = 90, dt = 1 / 60, rate = 0.05, jump = 18
-  const sx = i => x0 + (i / FR) * (x1 - x0)
-  const YMAX = 1.15
+  const YMAX = 1.18, Tsec = 120, dt = 0.5, N = Tsec / dt, hl = 45, fb = 0.5, rate = 0.3
+  const sx = s => x0 + (s / Tsec) * (x1 - x0)
   const sy = v => y0 + (v / YMAX) * (y1 - y0)
-  let peak = 0.5, scale = 0.5
+  // x: rest → hard effort → moderate, deterministic jitter (no RNG)
+  const xAt = s => { const b = s < 16 ? 0.30 : s < 40 ? 1.00 : 0.45; return Math.max(0, b + 0.04 * Math.sin(s * 1.7) * Math.cos(s * 0.6)) }
+  let peak = 0.30, scale = 0.50
   const P = [], S = [], X = []
-  // deterministic pseudo-jitter for the raw x line (no RNG needed)
-  for (let i = 0; i <= FR; i++) {
-    const forcing = i < jump ? 0.5 : 1.0
-    const jit = 0.06 * Math.sin(i * 0.9) * Math.cos(i * 0.37)
-    const x = Math.max(0, forcing + jit)
-    peak = Math.max(peak, x)
-    scale = scale + rate * Math.max(0, peak - scale)
-    X.push([i, Math.min(x, YMAX)]); P.push([i, peak]); S.push([i, scale])
+  for (let i = 0; i <= N; i++) {
+    const s = i * dt, x = xAt(s)
+    peak = Math.max(peak * Math.pow(0.5, dt / hl), x)      // leaky "recent max"
+    scale = scale + rate * (Math.max(peak, fb) - scale)    // toward max(peak, fallback), both ways
+    X.push([s, Math.min(x, YMAX)]); P.push([s, peak]); S.push([s, scale])
   }
   let p = [`<rect width="${W}" height="${H}" fill="#ffffff"/>`]
   for (let g = 0; g <= 1.0001; g += 0.25) {
@@ -132,32 +130,36 @@ function adaptFig() {
   }
   p.push(`<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y0}" stroke="${AXIS}" stroke-width="1.5"/>`)
   p.push(`<line x1="${x0}" y1="${y0}" x2="${x0}" y2="${y1}" stroke="${AXIS}" stroke-width="1.5"/>`)
-  p.push(`<line x1="${sx(jump)}" y1="${y0}" x2="${sx(jump)}" y2="${y1}" stroke="${AMBER}" stroke-width="1" stroke-dasharray="4 4"/>`)
-  p.push(T(sx(jump) + 6, y1 + 14, '急に力む', { fs: 12, fill: AMBER }))
+  for (let s = 0; s <= Tsec; s += 30) p.push(T(sx(s), y0 + 20, s + 's', { fs: 12, fill: SUB, a: 'middle' }))
+  p.push(`<line x1="${x0}" y1="${sy(fb)}" x2="${x1}" y2="${sy(fb)}" stroke="#b9bfc9" stroke-width="1" stroke-dasharray="3 4"/>`)
+  p.push(T(x1 - 4, sy(fb) - 5, 'fallback', { fs: 11, fill: SUB, a: 'end' }))
+  p.push(`<rect x="${sx(16)}" y="${y1}" width="${sx(40) - sx(16)}" height="${y0 - y1}" fill="${AMBER}" fill-opacity="0.07"/>`)
+  p.push(T((sx(16) + sx(40)) / 2, y1 + 14, '力む', { fs: 12, fill: AMBER, a: 'middle' }))
   const path = (arr, extra = '') => { let d = ''; arr.forEach((q, i) => d += (i ? 'L' : 'M') + sx(q[0]).toFixed(1) + ',' + sy(q[1]).toFixed(1) + ' '); return d }
   p.push(`<path d="${path(X)}" fill="none" stroke="#c3cad4" stroke-width="1.5"/>`)         // raw x
   p.push(`<path d="${path(P)}" fill="none" stroke="${AMBER}" stroke-width="2.5"/>`)         // peak (step)
   p.push(`<path d="${path(S)}" fill="none" stroke="${TEAL}" stroke-width="3"/>`)            // scale (smooth)
   // axis labels
-  p.push(T((x0 + x1) / 2, H - 14, '時間 →', { fs: 14, a: 'middle', fill: INK }))
+  p.push(T((x0 + x1) / 2, H - 12, '時間 (s) →', { fs: 14, a: 'middle', fill: INK }))
   // legend (right gutter)
   const lx = x1 + 16
   let ly = y1 + 10
   const leg = (c, t, sw = 3, dash = '') => { p.push(`<line x1="${lx}" y1="${ly}" x2="${lx + 26}" y2="${ly}" stroke="${c}" stroke-width="${sw}" ${dash}/>`); p.push(T(lx + 32, ly + 5, t, { fs: 13, fill: INK })); ly += 26 }
-  leg('#c3cad4', 'x（力み量・生）', 1.5)
-  leg(AMBER, 'peak（最大保持）', 2.5)
-  leg(TEAL, 'scale（EMA平滑）', 3)
-  p.push(T(lx, ly + 8, 'peak は段差状に', { fs: 12, fill: SUB }))
-  p.push(T(lx, ly + 26, '一気に上がり、', { fs: 12, fill: SUB }))
-  p.push(T(lx, ly + 44, 'scale は遅れて', { fs: 12, fill: SUB }))
-  p.push(T(lx, ly + 62, 'なめらかに追従', { fs: 12, fill: SUB }))
+  leg('#c3cad4', 'x（力み・生）', 1.5)
+  leg(AMBER, 'peak（リーク）', 2.5)
+  leg(TEAL, 'scale（追従）', 3)
+  p.push(T(lx, ly + 8, '力むと跳ね上がり、', { fs: 12, fill: SUB }))
+  p.push(T(lx, ly + 26, '放すと半減期で', { fs: 12, fill: SUB }))
+  p.push(T(lx, ly + 44, 'ゆっくり減衰。', { fs: 12, fill: SUB }))
+  p.push(T(lx, ly + 62, 'scale は両方向、', { fs: 12, fill: SUB }))
+  p.push(T(lx, ly + 80, 'fallback が下限。', { fs: 12, fill: SUB }))
   rasterize('adapt', `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">${p.join('')}</svg>`, W * 2)
 }
 
 // ---------------------------------------------------------------- reach fan
 function fanFig() {
   const W = 760, H = 430, cx = W / 2, cy = H - 70
-  const rmin = 0.15, rmax = 0.70, thmin = 0, thmax = 180, mR = 0.12, mTh = 0.12
+  const rmin = 0.23, rmax = 0.70, thmin = 0, thmax = 180, mR = 0.12, mTh = 0.12
   const OUT_PX = 300, ppm = OUT_PX / rmax
   const pt = (r, thDeg) => { const a = thDeg * Math.PI / 180; return [cx + r * ppm * Math.cos(a), cy - r * ppm * Math.sin(a)] }
   const arc = (r, a0, a1) => { const [x0, y0] = pt(r, a0), [x1, y1] = pt(r, a1); return `M${x0.toFixed(1)},${y0.toFixed(1)} A${(r * ppm).toFixed(1)},${(r * ppm).toFixed(1)} 0 0 0 ${x1.toFixed(1)},${y1.toFixed(1)}` }
@@ -198,7 +200,7 @@ function fanFig() {
   let [a9x, a9y] = pt(rmax, 90); p.push(T(a9x, a9y - 10, 'θ = 90°（前方）', { fs: 13, a: 'middle', fill: INK }))
   let [a1x, a1y] = pt(rmax, 180); p.push(T(a1x - 8, a1y + 4, 'θ = 180°', { fs: 13, a: 'end', fill: INK }))
   // r labels
-  let [rmnx, rmny] = pt(rmin, 118); p.push(T(rmnx - 4, rmny + 4, 'r_min = 0.15', { fs: 12, a: 'end', fill: INK }))
+  let [rmnx, rmny] = pt(rmin, 118); p.push(T(rmnx - 4, rmny + 4, 'r_min = 0.23', { fs: 12, a: 'end', fill: INK }))
   let [rmxx, rmxy] = pt(rmax, 122); p.push(T(rmxx - 4, rmxy - 6, 'r_max = 0.70', { fs: 12, a: 'end', fill: INK }))
   // legend for band
   p.push(`<rect x="40" y="24" width="18" height="18" rx="3" fill="${GREEN}" fill-opacity="0.28"/>`)
