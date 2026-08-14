@@ -54,6 +54,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().addWidget(self.status)
 
         self.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
+        # App-wide key handling so F/J/B/R/D/S work no matter which child widget
+        # (slider, GL view, waveform plot) currently holds focus.
+        QtWidgets.QApplication.instance().installEventFilter(self)
+
         self._elapsed = QtCore.QElapsedTimer()
         self._elapsed.start()
         self._timer = QtCore.QTimer(self)
@@ -144,14 +148,37 @@ class MainWindow(QtWidgets.QMainWindow):
         self.status.setText("     ".join(parts))
 
     # -- input -------------------------------------------------------------
-    def keyPressEvent(self, e: QtGui.QKeyEvent) -> None:
-        if e.isAutoRepeat():
+    # Keys handled globally (see eventFilter). Use key codes, not text(), so IME
+    # / focused widgets can't swallow or rewrite them.
+    _KEYMAP = {
+        QtCore.Qt.Key.Key_F: "F",
+        QtCore.Qt.Key.Key_J: "J",
+        QtCore.Qt.Key.Key_B: "B",
+        QtCore.Qt.Key.Key_R: "R",
+        QtCore.Qt.Key.Key_D: "D",
+        QtCore.Qt.Key.Key_S: "S",
+    }
+
+    def eventFilter(self, obj, event) -> bool:
+        t = event.type()
+        if t in (QtCore.QEvent.Type.KeyPress, QtCore.QEvent.Type.KeyRelease):
+            k = self._KEYMAP.get(event.key())
+            if k is not None:
+                self._handle_key(k, t == QtCore.QEvent.Type.KeyPress, event.isAutoRepeat())
+                return True  # consume so the focused widget doesn't also react
+        return super().eventFilter(obj, event)
+
+    def _handle_key(self, k: str, pressed: bool, autorepeat: bool) -> None:
+        if autorepeat:
             return
-        k = e.text().upper()
-        if k:
+        if not pressed:
+            self._keys.discard(k)
+            return
+        if k in ("F", "J"):
             self._keys.add(k)
-        if k == "B":
-            self._start_baseline()
+            self.engine.notify_user_input()
+        elif k == "B":
+            self._start_baseline()  # notifies internally
         elif k == "R":
             self.engine.reset_session()
             self.engine.notify_user_input()
@@ -159,13 +186,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.engine.set_attract(not self.engine.attract)
         elif k == "S":
             self._open_settings()
-        else:
             self.engine.notify_user_input()
-
-    def keyReleaseEvent(self, e: QtGui.QKeyEvent) -> None:
-        if e.isAutoRepeat():
-            return
-        self._keys.discard(e.text().upper())
 
     def _start_baseline(self) -> None:
         self.engine.start_baseline()
