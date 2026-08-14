@@ -147,11 +147,13 @@ class MainWindow(QtWidgets.QMainWindow):
         m_r = (r_t - cfg.control.r_min) / max(1e-6, cfg.control.r_max - cfg.control.r_min)
         m_th = (th_t - cfg.control.theta_min) / max(1e-6, cfg.control.theta_max - cfg.control.theta_min)
         # Reach tolerance as a per-axis fraction so the bar band matches the 3D
-        # circle (radius reach_dist): the r axis scales by the r-range, but the θ
-        # axis scales by arc length — reach_dist subtends reach_dist/r_t radians at
-        # the target's distance, so the θ band shrinks as the target moves outward.
-        band_r = cfg.game.reach_dist / max(1e-6, cfg.control.r_max - cfg.control.r_min)
-        band_th = (cfg.game.reach_dist / max(1e-6, r_t)) / \
+        # circle (radius reach_dist). Show the FULL hit-zone width (diameter =
+        # 2·reach_dist): the marker can sit anywhere in the band and that axis is
+        # within the circle. The r axis scales by the r-range; the θ axis scales by
+        # arc length (reach_dist subtends reach_dist/r_t rad at the target's radius),
+        # so the θ band shrinks as the target moves outward.
+        band_r = 2 * cfg.game.reach_dist / max(1e-6, cfg.control.r_max - cfg.control.r_min)
+        band_th = 2 * (cfg.game.reach_dist / max(1e-6, r_t)) / \
             max(1e-6, cfg.control.theta_max - cfg.control.theta_min)
         if cfg.ui.marker_enabled and not eng.attract:
             alpha = float(np.clip((self._target_age - cfg.ui.marker_delay_sec) / 1.0, 0.0, 1.0))
