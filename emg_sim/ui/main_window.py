@@ -119,18 +119,20 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.engine.source.set_drive(drive[0], drive[1])
 
         ev = self.engine.step(dt)
-        if ev in ("reached", "round_complete"):
+        hit = ev in ("reached", "round_complete")
+        if hit:
             self._target_age = 0.0
             self.sfx.play()
         else:
             self._target_age += dt
-        self._refresh()
+        self._refresh(dt, hit)
 
-    def _refresh(self) -> None:
+    def _refresh(self, dt: float = 0.0, hit_flash: bool = False) -> None:
         eng, cfg = self.engine, self.cfg
-        # green sphere = the game's reach target (fixed until reached), NOT the
-        # control target (which tracks the arm's commanded destination / tip).
-        self.scene.update_state(eng.control.arm, eng.game.target_xyz, eng.tip)
+        # green wedge = the game's reach target (fixed until reached). hold_frac drives
+        # the in-zone "charge"; hit_flash pops the completion flash at the old target.
+        self.scene.update_state(eng.control.arm, eng.game.target_xyz, eng.tip,
+                                eng.game.hold_frac, hit_flash, dt)
         self.wave_left.update_state(eng.waveform(0), eng.amp_history(0),
                                     eng.norm.baseline[0], eng.norm.scale[0], eng.norm.peak[0])
         self.wave_right.update_state(eng.waveform(1), eng.amp_history(1),

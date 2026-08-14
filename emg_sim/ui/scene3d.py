@@ -105,8 +105,13 @@ def _rgb(c, a=1.0):
 
 
 _C_REGION = _rgb(theme.TARGET, 1.0)          # target outline circle
-_C_TARGET_FILL = _rgb(theme.TARGET, 0.22)    # flat target disc fill (translucent)
+_C_TARGET_FILL = _rgb(theme.TARGET, 0.22)    # flat target wedge fill (translucent)
+_C_TARGET_CHARGE = _rgb(theme.TARGET, 0.85)  # bright "charging" fill that grows while holding
+_C_FLASH = (0.80, 1.0, 0.84)                 # near-white green completion flash (RGB; α set live)
+
+_FLASH_SEC = 0.28                            # completion-flash duration
 _C_TIP = _rgb(theme.TIP, 1.0)
+_C_TIP_HIT = _rgb(theme.TARGET, 1.0)         # tip marker turns green while on target
 _C_FAN = _rgb(theme.FAN, 1.0)
 _C_FAN_FILL = _rgb(theme.FAN, 0.16)
 _C_FRONT = _rgb(theme.FRONT, 1.0)
@@ -230,6 +235,21 @@ class Scene3D(gl.GLViewWidget):
                                               glOptions=_LINE_GL)
         self._target_ring.setDepthValue(22)
         self.addItem(self._target_ring)
+        # hit-in-progress "charge": a bright fill that grows across the wedge as the
+        # dwell (hold_frac 0→1) accumulates, + a completion flash that pops on reach.
+        self._target_charge = gl.GLMeshItem(smooth=False, color=_C_TARGET_CHARGE,
+                                            shader=_FLAT, glOptions=_FILL_GL, drawEdges=False)
+        self._target_charge.setDepthValue(13)          # over the base fill (12)
+        self._target_charge.setVisible(False)
+        self.addItem(self._target_charge)
+        self._flash = gl.GLMeshItem(smooth=False, color=(*_C_FLASH, 1.0),
+                                    shader=_FLAT, glOptions=_FILL_GL, drawEdges=False)
+        self._flash.setDepthValue(14)
+        self._flash.setVisible(False)
+        self.addItem(self._flash)
+        self._flash_t = 0.0
+        self._flash_rt = None
+        self._prev_target_rt = None
         _c = self.cfg.control                          # seed valid geometry before first paint
         self._set_target(0.5 * (_c.r_min + _c.r_max), 0.5 * (_c.theta_min + _c.theta_max))
 
@@ -287,26 +307,59 @@ class Scene3D(gl.GLViewWidget):
                                               [c.r_max * np.cos(c.theta_min),
                                                c.r_max * np.sin(c.theta_min), z]]))
 
-    def _set_target(self, r_t: float, th_t: float) -> None:
-        """Flat target wedge (fill + outline) = the (r,θ) hit zone on the plane:
-        r ∈ [r_t±reach_r], θ ∈ [th_t±reach_theta] — a small annular sector."""
-        g, z = self.cfg.game, self.cfg.control.z_plane
-        r0, r1 = r_t - g.reach_r, r_t + g.reach_r
-        dth = np.radians(g.reach_theta_deg)
-        n = 16
-        th = np.linspace(th_t - dth, th_t + dth, n)
+    def _wedge_mesh(self, r_c: float, th_c: float, dr: float, dth: float, n: int = 16):
+        """Annular-sector mesh centred at (r_c, th_c), half-extents (dr, dth).
+        Returns (verts, faces, inner_arc, outer_arc)."""
+        z = self.cfg.control.z_plane
+        r0, r1 = r_c - dr, r_c + dr
+        th = np.linspace(th_c - dth, th_c + dth, n)
         inner = np.column_stack([r0 * np.cos(th), r0 * np.sin(th), np.full(n, z)])
         outer = np.column_stack([r1 * np.cos(th), r1 * np.sin(th), np.full(n, z)])
-        verts = np.vstack([inner, outer])              # 0..n-1 inner, n..2n-1 outer
         faces = []
         for i in range(n - 1):
             a, b, cc, d = i, i + 1, n + i, n + i + 1
             faces += [[a, cc, d], [a, d, b]]
-        self._target_fill.setMeshData(vertexes=verts, faces=np.array(faces))
+        return np.vstack([inner, outer]), np.array(faces), inner, outer
+
+    def _set_target(self, r_t: float, th_t: float) -> None:
+        """Flat target wedge (fill + outline) = the (r,θ) hit zone on the plane."""
+        g = self.cfg.game
+        verts, faces, inner, outer = self._wedge_mesh(r_t, th_t, g.reach_r,
+                                                      np.radians(g.reach_theta_deg))
+        self._target_fill.setMeshData(vertexes=verts, faces=faces)
         self._target_ring.setData(pos=np.vstack([inner, outer[::-1], inner[:1]]))
 
+    def _set_charge(self, r_t: float, th_t: float, hold_frac: float) -> None:
+        """Bright fill growing radially (inner edge → outward) with the dwell."""
+        if hold_frac <= 1e-3:
+            self._target_charge.setVisible(False)
+            return
+        g = self.cfg.game
+        r0 = r_t - g.reach_r
+        top = r0 + hold_frac * 2 * g.reach_r
+        verts, faces, _, _ = self._wedge_mesh(0.5 * (r0 + top), th_t, 0.5 * (top - r0),
+                                              np.radians(g.reach_theta_deg))
+        self._target_charge.setMeshData(vertexes=verts, faces=faces)
+        self._target_charge.setVisible(True)
+
+    def _update_flash(self, dt: float) -> None:
+        """Completion pop: a bright wedge that expands and fades over _FLASH_SEC."""
+        if self._flash_t <= 0.0 or self._flash_rt is None:
+            self._flash.setVisible(False)
+            return
+        self._flash_t = max(0.0, self._flash_t - dt)
+        f = self._flash_t / _FLASH_SEC                 # 1 → 0
+        scale = 1.0 + (1.0 - f) * 0.9                  # expand 1.0 → 1.9
+        g = self.cfg.game
+        r_t, th_t = self._flash_rt
+        verts, faces, _, _ = self._wedge_mesh(r_t, th_t, g.reach_r * scale,
+                                              np.radians(g.reach_theta_deg) * scale)
+        self._flash.setMeshData(vertexes=verts, faces=faces)
+        self._flash.setColor((*_C_FLASH, 0.85 * f))
+        self._flash.setVisible(self._flash_t > 0.0)
+
     # -- per-frame ---------------------------------------------------------
-    def update_state(self, arm, target_xyz, tip) -> None:
+    def update_state(self, arm, target_xyz, tip, hold_frac=0.0, hit_flash=False, dt=0.0) -> None:
         self._update_fan()
         Ts = arm.forward_kinematics()
         for item, parent, xform in self.parts:
@@ -320,8 +373,16 @@ class Scene3D(gl.GLViewWidget):
             m = flat @ (Ts[parent + 1] @ xform)
             sh.setTransform(pg.Transform3D(*m.flatten()))
         self._place(self.tipmark, tip)
-        self._set_target(float(np.hypot(target_xyz[0], target_xyz[1])),
-                         float(np.arctan2(target_xyz[1], target_xyz[0])))
+        r_t = float(np.hypot(target_xyz[0], target_xyz[1]))
+        th_t = float(np.arctan2(target_xyz[1], target_xyz[0]))
+        self._set_target(r_t, th_t)
+        self._set_charge(r_t, th_t, hold_frac)         # bright fill grows while holding
+        if hit_flash and self._prev_target_rt is not None:
+            self._flash_t = _FLASH_SEC                 # pop at the just-completed target
+            self._flash_rt = self._prev_target_rt
+        self._update_flash(dt)
+        self._prev_target_rt = (r_t, th_t)
+        self.tipmark.setColor(_C_TIP_HIT if hold_frac > 1e-3 else _C_TIP)
 
         # r / θ overlay for the live arm TIP (teach polar coords; moves as you flex)
         z = self.cfg.control.z_plane
