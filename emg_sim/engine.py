@@ -23,7 +23,8 @@ _ACTIVE_THRESH = 0.15  # activation above this counts as "someone is flexing"
 
 
 class Engine:
-    def __init__(self, cfg: Config | None = None, source: InputSource | None = None, seed: int = 0):
+    def __init__(self, cfg: Config | None = None, source: InputSource | None = None,
+                 seed: int | None = None):
         self.cfg = cfg or Config()
         self.source = source or DummySource(self.cfg, mode="manual", seed=seed)
         self.dsp = RMSPipeline(self.cfg)

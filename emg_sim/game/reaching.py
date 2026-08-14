@@ -22,7 +22,10 @@ class ReachingGame:
         self.spawn()
 
     def _rand_rt(self) -> tuple[float, float]:
-        r = float(self.rng.uniform(self.ctrl.r_min, self.ctrl.r_max))
+        # r via sqrt so targets are uniform over the annulus AREA, not over (r,θ)
+        # (plain uniform-r clusters targets toward the inner edge).
+        r0, r1 = self.ctrl.r_min, self.ctrl.r_max
+        r = float(np.sqrt(self.rng.uniform(r0 * r0, r1 * r1)))
         th = float(self.rng.uniform(self.ctrl.theta_min, self.ctrl.theta_max))
         return r, th
 
