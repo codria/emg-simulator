@@ -64,25 +64,44 @@ class SettingsDialog(QtWidgets.QDialog):
 
         lay = QtWidgets.QVBoxLayout(self)
         rebuild = engine.rebuild_dsp
-        specs = [
-            ("RMS 窓 (ms)", cfg.signal, "rms_window_ms", 10, 400, 0, rebuild),
-            ("EMA α", cfg.signal, "ema_alpha", 0.05, 1.0, 2, rebuild),
-            ("ソフト飽和 gain", cfg.normalize, "sat_gain", 0.5, 3.0, 2, None),
-            ("オンライン適応率", cfg.normalize, "adapt_rate", 0.0, 0.2, 3, None),
-            ("r_min", cfg.control, "r_min", 0.15, 0.60, 2, lambda: self._clamp_r("r_min")),
-            ("r_max", cfg.control, "r_max", 0.30, 0.90, 2, lambda: self._clamp_r("r_max")),
-            ("肘 near (畳み)", cfg.control, "elbow_target_near", 1.0, 3.0, 2, None),
-            ("肘 far (伸展)", cfg.control, "elbow_target_far", 0.0, 1.0, 2, None),
-            ("目標マージン (端除外)", cfg.game, "target_margin", 0.0, 0.4, 2, None),
-            ("到達距離 (m)", cfg.game, "reach_dist", 0.02, 0.12, 3, None),
-            ("滞在時間 (s)", cfg.game, "hold_sec", 0.1, 1.0, 2, None),
-            ("マーカー遅延 (s)", cfg.ui, "marker_delay_sec", 0.0, 8.0, 1, None),
+        # bold section titles; keep the slider rows themselves normal weight
+        self.setStyleSheet(
+            "QGroupBox { font-weight: bold; margin-top: 10px; }"
+            "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }"
+            "QGroupBox QLabel { font-weight: normal; }"
+        )
+        # sliders grouped under headings (each group ≈ one config section)
+        groups = [
+            ("平滑化・正規化", [
+                ("RMS 窓 (ms)", cfg.signal, "rms_window_ms", 10, 400, 0, rebuild),
+                ("EMA α", cfg.signal, "ema_alpha", 0.05, 1.0, 2, rebuild),
+                ("ソフト飽和 gain", cfg.normalize, "sat_gain", 0.5, 3.0, 2, None),
+                ("オンライン適応率", cfg.normalize, "adapt_rate", 0.0, 0.2, 3, None),
+                ("peak 半減期 (s)", cfg.normalize, "peak_halflife_sec", 3.0, 60.0, 1, None),
+            ]),
+            ("操作範囲・アーム", [
+                ("r_min", cfg.control, "r_min", 0.23, 0.60, 2, lambda: self._clamp_r("r_min")),
+                ("r_max", cfg.control, "r_max", 0.30, 0.90, 2, lambda: self._clamp_r("r_max")),
+                ("肘 near (畳み)", cfg.control, "elbow_target_near", 1.0, 3.0, 2, None),
+                ("肘 far (伸展)", cfg.control, "elbow_target_far", 0.0, 1.0, 2, None),
+            ]),
+            ("ターゲッティング", [
+                ("目標マージン (端除外)", cfg.game, "target_margin", 0.0, 0.4, 2, None),
+                ("到達距離 (m)", cfg.game, "reach_dist", 0.02, 0.12, 3, None),
+                ("滞在時間 (s)", cfg.game, "hold_sec", 0.1, 1.0, 2, None),
+                ("マーカー遅延 (s)", cfg.ui, "marker_delay_sec", 0.0, 8.0, 1, None),
+            ]),
         ]
         self.rows = []
-        for label, obj, attr, lo, hi, dec, cb in specs:
-            row = _SliderRow(label, obj, attr, lo, hi, dec, cb)
-            self.rows.append(row)
-            lay.addWidget(row)
+        for title, specs in groups:
+            box = QtWidgets.QGroupBox(title)
+            v = QtWidgets.QVBoxLayout(box)
+            v.setSpacing(4)
+            for label, obj, attr, lo, hi, dec, cb in specs:
+                row = _SliderRow(label, obj, attr, lo, hi, dec, cb)
+                self.rows.append(row)
+                v.addWidget(row)
+            lay.addWidget(box)
 
         btns = QtWidgets.QHBoxLayout()
         b_save = QtWidgets.QPushButton("保存")
@@ -94,7 +113,8 @@ class SettingsDialog(QtWidgets.QDialog):
         btns.addWidget(b_load)
         btns.addWidget(self.status, 1)
         lay.addLayout(btns)
-        self.resize(440, 380)
+        lay.addStretch(1)
+        self.resize(460, 470)
 
     def _clamp_r(self, which: str) -> None:
         c = self.cfg.control
