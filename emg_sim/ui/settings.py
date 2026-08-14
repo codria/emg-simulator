@@ -132,6 +132,7 @@ class SettingsDialog(QtWidgets.QDialog):
                 ("EMA α", cfg.signal, "ema_alpha", 0.05, 1.0, 2, rebuild),
                 ("ソフト飽和 gain", cfg.normalize, "sat_gain", 0.5, 3.0, 2, None),
                 ("オンライン適応率", cfg.normalize, "adapt_rate", 0.0, 0.2, 3, None),
+                ("scale 下限 (小=高感度)", cfg.normalize, "fallback_scale", 0.1, 1.0, 2, None),
                 ("peak 半減期 (s)", cfg.normalize, "peak_halflife_sec", 3.0, 180.0, 1, None),
             ]),
             ("操作範囲・アーム", [
@@ -175,7 +176,7 @@ class SettingsDialog(QtWidgets.QDialog):
         btns.addWidget(self.status, 1)
         lay.addLayout(btns)
         lay.addStretch(1)
-        self.resize(480, 585)
+        self.resize(480, 620)
 
     def _clamp_r(self, which: str) -> None:
         c = self.cfg.control
