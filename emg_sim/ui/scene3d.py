@@ -227,6 +227,7 @@ class Scene3D(gl.GLViewWidget):
                                               glOptions=_LINE_GL)
         self._target_ring.setDepthValue(22)
         self.addItem(self._target_ring)
+        self._set_target(0.0, 0.0)      # seed valid geometry before the first tick paints
 
         pmd = gl.MeshData.sphere(rows=8, cols=8, radius=0.018)
         self.tipmark = gl.GLMeshItem(meshdata=pmd, smooth=True, color=_C_TIP, shader=_BRIGHT)
@@ -282,6 +283,18 @@ class Scene3D(gl.GLViewWidget):
                                               [c.r_max * np.cos(c.theta_min),
                                                c.r_max * np.sin(c.theta_min), z]]))
 
+    def _set_target(self, cx: float, cy: float) -> None:
+        """Flat target disc (fill + outline) centered at (cx,cy) on the plane."""
+        rr = self.cfg.game.reach_dist
+        z = self.cfg.control.z_plane
+        n = 48
+        th = np.linspace(0, 2 * np.pi, n)
+        rim = np.column_stack([cx + rr * np.cos(th), cy + rr * np.sin(th), np.full(n, z)])
+        verts = np.vstack([[cx, cy, z], rim])          # 0 = center, 1..n = rim
+        faces = np.array([[0, i, i + 1] for i in range(1, n)])
+        self._target_fill.setMeshData(vertexes=verts, faces=faces)
+        self._target_ring.setData(pos=rim)
+
     # -- per-frame ---------------------------------------------------------
     def update_state(self, arm, target_xyz, tip) -> None:
         self._update_fan()
@@ -297,17 +310,7 @@ class Scene3D(gl.GLViewWidget):
             m = flat @ (Ts[parent + 1] @ xform)
             sh.setTransform(pg.Transform3D(*m.flatten()))
         self._place(self.tipmark, tip)
-        # target = filled disc + outline on the operation plane (radius = reach_dist)
-        rr = self.cfg.game.reach_dist
-        z = self.cfg.control.z_plane
-        n = 48
-        th = np.linspace(0, 2 * np.pi, n)
-        rim = np.column_stack([target_xyz[0] + rr * np.cos(th),
-                               target_xyz[1] + rr * np.sin(th), np.full(n, z)])
-        verts = np.vstack([[target_xyz[0], target_xyz[1], z], rim])   # 0=center, 1..n=rim
-        faces = np.array([[0, i, i + 1] for i in range(1, n)])
-        self._target_fill.setMeshData(vertexes=verts, faces=faces)
-        self._target_ring.setData(pos=rim)
+        self._set_target(target_xyz[0], target_xyz[1])
 
         # r / θ overlay for the live arm TIP (teach polar coords; moves as you flex)
         z = self.cfg.control.z_plane
