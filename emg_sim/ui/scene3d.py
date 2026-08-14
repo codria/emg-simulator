@@ -27,6 +27,18 @@ _FILL_GL = {
     "glDepthMask": (GL.GL_FALSE,),
 }
 
+# Glow line that is still DEPTH-TESTED: additive blend (bright overlay look) but
+# the arm occludes the fan / r-θ lines where it passes in front (default line
+# items skip the depth test and always draw on top). No depth write, so lines
+# don't occlude each other or the shadow.
+_LINE_GL = {
+    GL.GL_DEPTH_TEST: True,
+    GL.GL_BLEND: True,
+    GL.GL_CULL_FACE: False,
+    "glBlendFunc": (GL.GL_SRC_ALPHA, GL.GL_ONE),
+    "glDepthMask": (GL.GL_FALSE,),
+}
+
 from . import armmesh
 
 # Brighter two-sided shader. Mirrors pyqtgraph's ES2-compatible 'shaded' shader
@@ -146,11 +158,11 @@ class Scene3D(gl.GLViewWidget):
                                        glOptions=_FILL_GL, drawEdges=False)
         self._fan_fill.setDepthValue(10)  # draw after opaque parts → tints, never occludes
         self.addItem(self._fan_fill)
-        self._arc_in = gl.GLLinePlotItem(width=2.0, antialias=True, color=_C_FAN)
-        self._arc_out = gl.GLLinePlotItem(width=2.0, antialias=True, color=_C_FAN)
-        self._edge_lo = gl.GLLinePlotItem(width=2.0, antialias=True, color=_C_FAN)
-        self._edge_hi = gl.GLLinePlotItem(width=2.0, antialias=True, color=_C_FAN)
-        self._front = gl.GLLinePlotItem(width=3.5, antialias=True, color=_C_FRONT, mode="lines")
+        self._arc_in = gl.GLLinePlotItem(width=2.0, antialias=True, color=_C_FAN, glOptions=_LINE_GL)
+        self._arc_out = gl.GLLinePlotItem(width=2.0, antialias=True, color=_C_FAN, glOptions=_LINE_GL)
+        self._edge_lo = gl.GLLinePlotItem(width=2.0, antialias=True, color=_C_FAN, glOptions=_LINE_GL)
+        self._edge_hi = gl.GLLinePlotItem(width=2.0, antialias=True, color=_C_FAN, glOptions=_LINE_GL)
+        self._front = gl.GLLinePlotItem(width=3.5, antialias=True, color=_C_FRONT, mode="lines", glOptions=_LINE_GL)
         for it in (self._arc_in, self._arc_out, self._edge_lo, self._edge_hi, self._front):
             it.setDepthValue(20)         # draw over the floor shadow (depthValue 5)
             self.addItem(it)
@@ -162,9 +174,9 @@ class Scene3D(gl.GLViewWidget):
             self._front_label = None
 
         # r / θ teaching overlay: radius line to the target, angle arc, θ=0 axis
-        self._r_line = gl.GLLinePlotItem(width=3.0, antialias=True, color=_C_R)
-        self._theta_arc = gl.GLLinePlotItem(width=3.0, antialias=True, color=_C_TH)
-        self._theta_ref = gl.GLLinePlotItem(width=1.2, antialias=True, color=_C_TH_REF)
+        self._r_line = gl.GLLinePlotItem(width=3.0, antialias=True, color=_C_R, glOptions=_LINE_GL)
+        self._theta_arc = gl.GLLinePlotItem(width=3.0, antialias=True, color=_C_TH, glOptions=_LINE_GL)
+        self._theta_ref = gl.GLLinePlotItem(width=1.2, antialias=True, color=_C_TH_REF, glOptions=_LINE_GL)
         for it in (self._theta_ref, self._theta_arc, self._r_line):
             it.setDepthValue(22)         # draw over the floor shadow + fan
             self.addItem(it)
@@ -197,7 +209,7 @@ class Scene3D(gl.GLViewWidget):
             # shadow, but the flattened, coplanar shadow triangles no longer fight
             # each other in the depth buffer (that fight is the grainy speckle).
             sh = gl.GLMeshItem(meshdata=gl.MeshData(vertexes=v, faces=faces), smooth=False,
-                               color=(0.03, 0.03, 0.05, 0.22), shader=_FLAT, glOptions=_FILL_GL)
+                               color=(0.02, 0.03, 0.05, 0.38), shader=_FLAT, glOptions=_FILL_GL)
             sh.setDepthValue(5)             # after opaque, under the fan fill
             self.addItem(sh)
             self.shadows.append((sh, part["parent"], part["xform"]))
