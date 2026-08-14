@@ -188,8 +188,11 @@ class Scene3D(gl.GLViewWidget):
                                  color=(*part["color"], 1.0), shader=_BRIGHT, glOptions="opaque")
             self.addItem(item)
             self.parts.append((item, part["parent"], part["xform"]))
+            # _FILL_GL (depth-test on, depth-WRITE off): the arm still occludes the
+            # shadow, but the flattened, coplanar shadow triangles no longer fight
+            # each other in the depth buffer (that fight is the grainy speckle).
             sh = gl.GLMeshItem(meshdata=gl.MeshData(vertexes=v, faces=faces), smooth=False,
-                               color=(0.04, 0.04, 0.06, 0.35), shader=_FLAT, glOptions="translucent")
+                               color=(0.03, 0.03, 0.05, 0.22), shader=_FLAT, glOptions=_FILL_GL)
             sh.setDepthValue(5)             # after opaque, under the fan fill
             self.addItem(sh)
             self.shadows.append((sh, part["parent"], part["xform"]))
