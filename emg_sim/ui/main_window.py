@@ -118,7 +118,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _refresh(self) -> None:
         eng, cfg = self.engine, self.cfg
-        self.scene.update_state(eng.control.arm, eng.target, eng.tip)
+        # green sphere = the game's reach target (fixed until reached), NOT the
+        # control target (which tracks the arm's commanded destination / tip).
+        self.scene.update_state(eng.control.arm, eng.game.target_xyz, eng.tip)
         self.waves.update_state(eng.waveform(0), eng.waveform(1))
 
         r_t, th_t = eng.game.target_rt
