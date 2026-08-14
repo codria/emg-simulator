@@ -39,8 +39,24 @@ class Scene3D(gl.GLViewWidget):
         ped.translate(0, 0, z_floor + 0.025)
         self.addItem(ped)
 
-        self._add_ring(cfg.control.r_min, (90, 160, 220, 110))
-        self._add_ring(cfg.control.r_max, (90, 160, 220, 110))
+        # reach fan (arcs at r_min/r_max over the θ range + radial edges).
+        # Rebuilt every frame from cfg so it tracks the r_min/r_max/θ sliders,
+        # and the sector shape + front arrow make the forward direction clear.
+        fan = (90 / 255, 160 / 255, 220 / 255, 1.0)
+        self._arc_in = gl.GLLinePlotItem(width=2.0, antialias=True, color=fan)
+        self._arc_out = gl.GLLinePlotItem(width=2.0, antialias=True, color=fan)
+        self._edge_lo = gl.GLLinePlotItem(width=2.0, antialias=True, color=fan)
+        self._edge_hi = gl.GLLinePlotItem(width=2.0, antialias=True, color=fan)
+        self._front = gl.GLLinePlotItem(width=3.5, antialias=True, color=(1.0, 0.82, 0.30, 1.0),
+                                        mode="lines")
+        for it in (self._arc_in, self._arc_out, self._edge_lo, self._edge_hi, self._front):
+            self.addItem(it)
+        try:
+            self._front_label = gl.GLTextItem(text="FRONT", color=(255, 210, 80, 255))
+            self.addItem(self._front_label)
+        except Exception:
+            self._front_label = None
+        self._update_fan()
 
         # parametric arm parts
         self.parts = []
@@ -63,15 +79,33 @@ class Scene3D(gl.GLViewWidget):
                                      shader="shaded")
         self.addItem(self.tipmark)
 
-    def _add_ring(self, radius: float, color) -> None:
-        th = np.linspace(0, 2 * np.pi, 96)
-        pts = np.column_stack([radius * np.cos(th), radius * np.sin(th),
-                               np.full_like(th, self.cfg.control.z_plane)])
-        ring = gl.GLLinePlotItem(pos=pts, width=1.5, antialias=True,
-                                 color=tuple(c / 255 for c in color))
-        self.addItem(ring)
+    def _arc(self, radius: float, th0: float, th1: float, n: int = 72) -> np.ndarray:
+        th = np.linspace(th0, th1, n)
+        z = self.cfg.control.z_plane
+        return np.column_stack([radius * np.cos(th), radius * np.sin(th), np.full(n, z)])
+
+    def _update_fan(self) -> None:
+        c = self.cfg.control
+        z = c.z_plane
+        self._arc_in.setData(pos=self._arc(c.r_min, c.theta_min, c.theta_max))
+        self._arc_out.setData(pos=self._arc(c.r_max, c.theta_min, c.theta_max))
+        for edge, th in ((self._edge_lo, c.theta_min), (self._edge_hi, c.theta_max)):
+            edge.setData(pos=np.array([[c.r_min * np.cos(th), c.r_min * np.sin(th), z],
+                                       [c.r_max * np.cos(th), c.r_max * np.sin(th), z]]))
+        # front arrow (with arrowhead) along the fan centre
+        thm = 0.5 * (c.theta_min + c.theta_max)
+        d = np.array([np.cos(thm), np.sin(thm), 0.0])
+        perp = np.array([-np.sin(thm), np.cos(thm), 0.0])
+        base = np.array([0.0, 0.0, z]) + c.r_min * 0.35 * d
+        tip = np.array([0.0, 0.0, z]) + c.r_max * 1.12 * d
+        hl = tip - 0.07 * d + 0.045 * perp
+        hr = tip - 0.07 * d - 0.045 * perp
+        self._front.setData(pos=np.array([base, tip, tip, hl, tip, hr]))  # mode="lines" → pairs
+        if self._front_label is not None:
+            self._front_label.setData(pos=tip + 0.04 * d + np.array([0, 0, 0.02]))
 
     def update_state(self, arm, target_xyz, tip) -> None:
+        self._update_fan()
         Ts = arm.forward_kinematics()
         for item, parent, xform in self.parts:
             m = Ts[parent + 1] @ xform
