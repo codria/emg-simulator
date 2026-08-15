@@ -47,6 +47,11 @@ class PolarController:
         # all 30 iters every frame (~6.6 ms). A handful of warm-started iters track
         # smoothly at a fraction of the cost; the C++-verified default (30) is untouched.
         o.max_iter = 12
+        # Aim the base yaw at the target azimuth — resolves the Z-axis singularity so
+        # a large-θ command (near ±X) can't flip the arm up instead of reaching out.
+        o.j1_preferred = True
+        o.j1_preferred_gain = 0.20
+        o.j1_target = float(np.arctan2(self.target[1], self.target[0]))
         return o
 
     def _split(self, a_left: float, a_right: float) -> tuple[float, float]:
@@ -97,10 +102,8 @@ class PolarController:
         solve at large θ resolves the base the wrong way and dips the elbow below the
         floor (~0.13 m under, near θ=180°)."""
         self.arm.q = np.zeros(len(self.arm.joints))
-        o = self._ik_opts()
-        o.j1_preferred = True
-        o.j1_preferred_gain = 0.30
-        o.j1_target = float(np.arctan2(self.target[1], self.target[0]))
+        o = self._ik_opts()                    # already aims J1 at the target azimuth
+        o.j1_preferred_gain = 0.30             # stronger aim for the cold start
         for _ in range(60):
             self.arm.solve_ik(self.target, o)
         self._last_q = self.arm.q.copy()
