@@ -106,7 +106,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # -- loop --------------------------------------------------------------
     def _on_timer(self) -> None:
-        dt = min(self._elapsed.restart() / 1000.0, 0.05)
+        # When a dialog (Settings/Connection) or another app holds focus, ease the
+        # render rate right down so the shared UI thread stays responsive to that
+        # window instead of freezing under the 60 fps 3D repaint. The arm keeps
+        # animating (slower), so tuning still shows its effect live.
+        want = 16 if self.isActiveWindow() else 55
+        if self._timer.interval() != want:
+            self._timer.setInterval(want)
+        dt = min(self._elapsed.restart() / 1000.0, 0.1)
         self.tick(dt)
 
     def tick(self, dt: float) -> None:
