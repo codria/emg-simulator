@@ -47,11 +47,6 @@ class PolarController:
         # all 30 iters every frame (~6.6 ms). A handful of warm-started iters track
         # smoothly at a fraction of the cost; the C++-verified default (30) is untouched.
         o.max_iter = 12
-        # Aim the base yaw at the target azimuth — resolves the Z-axis singularity so
-        # a large-θ command (near ±X) can't flip the arm up instead of reaching out.
-        o.j1_preferred = True
-        o.j1_preferred_gain = 0.20
-        o.j1_target = float(np.arctan2(self.target[1], self.target[0]))
         return o
 
     def _split(self, a_left: float, a_right: float) -> tuple[float, float]:
@@ -88,22 +83,33 @@ class PolarController:
         # any numerical blow-up freezes the arm briefly rather than making it vanish.
         if np.all(np.isfinite(self.target)):
             self.arm.solve_ik(self.target, self._ik_opts())  # warm-started → smooth
+            # Recover from a "standing up" Z-singularity solution (tip stuck well above
+            # the plane, seen near θ=180° at large r): re-solve from the elbow-up reach
+            # seed. Only fires when genuinely stuck, so normal tracking is untouched.
+            if self.arm.tip_position()[2] - self.target[2] > 0.10:
+                self._settle_from_reach_seed(40)
         if np.all(np.isfinite(self.arm.q)):
             self._last_q = self.arm.q.copy()
         else:
             self.arm.q = self._last_q.copy()
         return self.arm.q.copy(), self.arm.tip_position(), self.target.copy()
 
+    def _settle_from_reach_seed(self, iters: int) -> None:
+        """Seed a clean elbow-up reach pose — base aimed at the target azimuth, shoulder
+        pitched toward the operation plane, elbow bent up — then solve. Reliable at
+        every (r, θ): a q=0 (vertical) start sits on the Z-axis singularity and can
+        stick 'standing up' near θ=180°, worst at large r."""
+        q = np.zeros(len(self.arm.joints))
+        if len(q) >= 3:
+            q[0] = float(np.arctan2(self.target[1], self.target[0]))   # base → azimuth
+            q[1] = 1.3                                                 # shoulder pitch down
+            q[2] = 1.0                                                 # elbow up
+        self.arm.q = q
+        for _ in range(iters):
+            self.arm.solve_ik(self.target, self._ik_opts())
+
     def reset_pose(self) -> None:
-        """Re-home the arm (joints zeroed) and re-settle to the current target, to
-        recover from an IK solution that flipped (e.g. an elbow-down pose). Solving
-        from home lets the elbow-up secondary task pick the natural configuration.
-        Aim the base yaw (J1) at the target azimuth while doing so: without it a cold
-        solve at large θ resolves the base the wrong way and dips the elbow below the
-        floor (~0.13 m under, near θ=180°)."""
-        self.arm.q = np.zeros(len(self.arm.joints))
-        o = self._ik_opts()                    # already aims J1 at the target azimuth
-        o.j1_preferred_gain = 0.30             # stronger aim for the cold start
-        for _ in range(60):
-            self.arm.solve_ik(self.target, o)
+        """Re-settle the arm to the current target from a clean elbow-up reach seed, to
+        recover from a flipped (elbow-down) or standing-up pose."""
+        self._settle_from_reach_seed(60)
         self._last_q = self.arm.q.copy()
