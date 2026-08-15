@@ -11,6 +11,8 @@ Controls (development / dummy input):
 
 from __future__ import annotations
 
+import time
+
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -113,8 +115,31 @@ class MainWindow(QtWidgets.QMainWindow):
         want = 16 if self.isActiveWindow() else 55
         if self._timer.interval() != want:
             self._timer.setInterval(want)
+        now = time.perf_counter()
+        gap = now - getattr(self, "_wd_last", now)   # time since the previous frame ran
+        self._wd_last = now
         dt = min(self._elapsed.restart() / 1000.0, 0.1)
+        t0 = time.perf_counter()
         self.tick(dt)
+        body = time.perf_counter() - t0
+        # watchdog: only fires on a pathological stall (>1 s, never in a healthy run).
+        # gap >> body → the main loop was starved (e.g. the poll thread held the GIL);
+        # body large → a phase on this thread blocked — the split says which.
+        if gap > 1.0 or body > 1.0:
+            from ..watchdog import warn
+            warn(f"slow loop: gap={gap:.1f}s body={body:.2f}s "
+                 f"(step={getattr(self, '_wd_step', 0.0):.2f} "
+                 f"sfx={getattr(self, '_wd_sfx', 0.0):.2f} "
+                 f"render={getattr(self, '_wd_refresh', 0.0):.2f}) "
+                 f"buf={self._buf_len()} src={type(self.engine.source).__name__}")
+
+    def _buf_len(self) -> int:
+        """Approx queued-sample count of the current source (BioRadio), for the watchdog."""
+        b = getattr(self.engine.source, "_buf", None)
+        try:
+            return min(len(b[0]), len(b[1])) if b else -1
+        except Exception:
+            return -1
 
     def tick(self, dt: float) -> None:
         if not self.engine.attract:
@@ -128,7 +153,10 @@ class MainWindow(QtWidgets.QMainWindow):
             if hasattr(self.engine.source, "set_drive"):
                 self.engine.source.set_drive(drive[0], drive[1])
 
+        t_step = time.perf_counter()
         ev = self.engine.step(dt)
+        self._wd_step = time.perf_counter() - t_step
+        t_sfx = time.perf_counter()
         hit = ev in ("reached", "round_complete")
         if hit:
             self._target_age = 0.0
@@ -140,7 +168,10 @@ class MainWindow(QtWidgets.QMainWindow):
         if hf > 1e-6 and self._prev_hold_frac <= 1e-6:
             self.sfx_enter.play()
         self._prev_hold_frac = hf
+        self._wd_sfx = time.perf_counter() - t_sfx
+        t_ref = time.perf_counter()
         self._refresh(dt, hit)
+        self._wd_refresh = time.perf_counter() - t_ref
 
     def _refresh(self, dt: float = 0.0, hit_flash: bool = False) -> None:
         eng, cfg = self.engine, self.cfg

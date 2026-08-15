@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 
 import numpy as np
 
@@ -97,6 +98,7 @@ class BioRadioSource(InputSource):
         self._buf = None            # [left_samples, right_samples], filled by the poll
         self._poll = None           # background poll thread
         self._stop = None           # Event that tells it to exit
+        self._warned_backlog = False   # watchdog: only warn once per stall
 
     # -- lifecycle ---------------------------------------------------------
     def start(self) -> None:
@@ -159,12 +161,27 @@ class BioRadioSource(InputSource):
     def _pump(self) -> None:
         """One poll: move whatever the device has buffered into our queue. Runs on the
         background thread (and is called directly by the read() unit tests)."""
+        t0 = time.perf_counter()
         left = list(self._bp[self._left].GetScaledValueArray())
         right = list(self._bp[self._right].GetScaledValueArray())
+        dur = time.perf_counter() - t0
+        if dur > 1.0:            # a BT/.NET read that blocked the poll thread (holds the GIL)
+            from ..watchdog import warn
+            warn(f"slow device pump: {dur:.1f}s for {len(left)}+{len(right)} samples "
+                 f"(BT read blocked; while it holds the GIL the UI freezes with it)")
         if left or right:
             with self._lock:
                 self._buf[0].extend(left)
                 self._buf[1].extend(right)
+                n = min(len(self._buf[0]), len(self._buf[1]))
+            sr = getattr(self, "sample_rate", 0) or 1000
+            if n > 5 * sr and not self._warned_backlog:
+                from ..watchdog import warn
+                warn(f"read() not draining: {n} samples (~{n / sr:.1f}s) queued "
+                     f"— the Qt loop isn't calling read() (main thread stuck elsewhere)")
+                self._warned_backlog = True
+            elif n < sr and self._warned_backlog:
+                self._warned_backlog = False   # re-arm after the backlog drains
 
     def _poll_loop(self) -> None:
         while not self._stop.is_set():
