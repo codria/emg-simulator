@@ -39,9 +39,9 @@ class WaveformPlot(QtWidgets.QWidget):
         self.p.setClipToView(True)
         self.p.setDownsampling(mode="peak", auto=True)  # stays fast at long windows
 
-        axl = self.p.getAxis("left")         # everything here is amplitude (a.u.)
-        axl.setTicks([[(-2, "-2"), (-1, "-1"), (0, "0"), (1, "1"), (2, "2")]])
-        axl.setStyle(tickTextOffset=3)
+        axl = self.p.getAxis("left")         # amplitude (a.u. for dummy, volts for a device)
+        axl.setStyle(tickTextOffset=3)       # ticks auto-generate to fit the auto-scaled range
+        self._yhi = 0.0                      # eased y-range high-water (autoscale)
         axl.setPen(pg.mkPen((120, 125, 140)))
         axl.setTextPen(pg.mkPen((150, 155, 170)))
         axl.setLabel("amplitude (a.u.)")
@@ -91,6 +91,7 @@ class WaveformPlot(QtWidgets.QWidget):
         lay.addWidget(self.p)
 
     def update_state(self, raw, amp, baseline=0.0, scale=0.0, peak=0.0) -> None:
+        self.sr = self.cfg.signal.sample_rate        # may have been adopted from a device
         n = len(raw)
         t = (np.arange(n) - (n - 1)) / self.sr   # last sample at t=0, older negative
         self.raw.setData(t, raw)
@@ -100,3 +101,17 @@ class WaveformPlot(QtWidgets.QWidget):
         self.base_line.setPos(b)                     # subtracted floor
         self.scale_line.setPos(b + float(scale))     # amp here → x/scale = 1 (満力)
         self.peak_line.setPos(b + float(peak))       # leaky high-water mark
+        self._autoscale_y(raw, amp, b, float(peak))
+
+    def _autoscale_y(self, raw, amp, b, peak) -> None:
+        """Fit the y-axis to the actual signal. A device streams volts (~±0.05) while
+        the dummy is a.u. (~±2) — the old fixed range hid one or the other. Fit a high
+        percentile of |raw| (so occasional spikes don't shrink everything) together
+        with the envelope and the leaky peak; ease the range so it doesn't jitter.
+        (`scale` is intentionally excluded: a mis-tuned fallback would push the whole
+        signal flat — lower `fallback_scale` in Settings and its line drops into view.)"""
+        pk = float(np.percentile(np.abs(raw), 98)) if len(raw) else 0.0
+        top = max(pk, float(np.max(amp)) if len(amp) else 0.0, abs(b) + float(peak), 1e-3)
+        self._yhi = max(top, self._yhi * 0.9)        # rise now, decay slowly (~1 s)
+        hi = self._yhi * 1.25
+        self.p.setYRange(-hi, hi, padding=0)
