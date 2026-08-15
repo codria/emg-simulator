@@ -41,6 +41,11 @@ class PolarController:
         o.elbow_gain = c.elbow_gain
         o.tool_down = c.tool_down
         o.tool_down_gain = c.tool_down_gain
+        # Real-time cap: the arm is warm-started (near the target from last frame) and
+        # the secondary tasks keep the tip just off tol, so the solve otherwise runs
+        # all 30 iters every frame (~6.6 ms). A handful of warm-started iters track
+        # smoothly at a fraction of the cost; the C++-verified default (30) is untouched.
+        o.max_iter = 12
         return o
 
     def _split(self, a_left: float, a_right: float) -> tuple[float, float]:
