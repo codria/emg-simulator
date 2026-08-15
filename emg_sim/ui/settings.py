@@ -179,11 +179,15 @@ class SettingsDialog(QtWidgets.QDialog):
         self.sat_curve.set_gain(cfg.normalize.sat_gain)   # initial draw
 
         btns = QtWidgets.QHBoxLayout()
+        b_reset = QtWidgets.QPushButton("ポーズリセット")
+        b_reset.setToolTip("腕をホーム姿勢から再計算して逆関節を復帰（P キーでも可）")
+        b_reset.clicked.connect(self._reset_pose)
         b_save = QtWidgets.QPushButton("保存")
         b_load = QtWidgets.QPushButton("読込")
         b_save.clicked.connect(self._save)
         b_load.clicked.connect(self._load)
         self.status = QtWidgets.QLabel()
+        btns.addWidget(b_reset)
         btns.addWidget(b_save)
         btns.addWidget(b_load)
         btns.addWidget(self.status, 1)
@@ -200,6 +204,10 @@ class SettingsDialog(QtWidgets.QDialog):
         for row in self.rows:
             if row.attr in ("r_min", "r_max"):
                 row.refresh()
+
+    def _reset_pose(self):
+        self.engine.reset_pose()
+        self.status.setText("ポーズをリセットしました")
 
     def _save(self):
         _USER_CFG.parent.mkdir(exist_ok=True)

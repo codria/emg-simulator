@@ -79,3 +79,11 @@ class PolarController:
         self.target = polar_to_xyz(self.cfg, self.r, self.theta)
         self.arm.solve_ik(self.target, self._ik_opts())  # warm-started → smooth
         return self.arm.q.copy(), self.arm.tip_position(), self.target.copy()
+
+    def reset_pose(self) -> None:
+        """Re-home the arm (joints zeroed) and re-settle to the current target, to
+        recover from an IK solution that flipped (e.g. an elbow-down pose). Solving
+        from home lets the elbow-up secondary task pick the natural configuration."""
+        self.arm.q = np.zeros(len(self.arm.joints))
+        for _ in range(60):
+            self.arm.solve_ik(self.target, self._ik_opts())

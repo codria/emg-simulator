@@ -108,6 +108,12 @@ class Engine:
         self.norm.reset_adaptation()
         self.game._reset_round()
 
+    def reset_pose(self) -> None:
+        """Re-home the arm and re-solve IK — recover from a flipped (inverse-joint) pose."""
+        self.control.reset_pose()
+        self.q = self.control.arm.q.copy()
+        self.tip = self.control.arm.tip_position()
+
     def rebuild_dsp(self) -> None:
         """Recreate the RMS pipeline after config changes (window/EMA)."""
         self.dsp = RMSPipeline(self.cfg)

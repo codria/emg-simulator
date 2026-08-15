@@ -183,7 +183,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if eng.attract:
             parts.append("● ATTRACT / デモ (何か操作で解除)")
         else:
-            parts.append("F/J=力む  B=較正  R=リセット  D=デモ  S=設定  C=接続")
+            parts.append("F/J=力む  B=較正  R=リセット  P=姿勢戻し  D=デモ  S=設定  C=接続")
         self.status.setText("     ".join(parts))
 
     # -- input -------------------------------------------------------------
@@ -197,6 +197,7 @@ class MainWindow(QtWidgets.QMainWindow):
         QtCore.Qt.Key.Key_D: "D",
         QtCore.Qt.Key.Key_S: "S",
         QtCore.Qt.Key.Key_C: "C",
+        QtCore.Qt.Key.Key_P: "P",
     }
 
     def eventFilter(self, obj, event) -> bool:
@@ -230,6 +231,8 @@ class MainWindow(QtWidgets.QMainWindow):
         elif k == "C":
             self._open_connection()
             self.engine.notify_user_input()
+        elif k == "P":
+            self.engine.reset_pose()      # re-home the arm (recover a flipped pose)
 
     def _start_baseline(self) -> None:
         self.engine.start_baseline()
