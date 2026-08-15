@@ -184,12 +184,16 @@ class SettingsDialog(QtWidgets.QDialog):
         b_reset.clicked.connect(self._reset_pose)
         b_save = QtWidgets.QPushButton("保存")
         b_load = QtWidgets.QPushButton("読込")
+        b_defaults = QtWidgets.QPushButton("設定リセット")
+        b_defaults.setToolTip("全スライダ設定を初期値に戻す（接続設定は保持・保存で永続化）")
         b_save.clicked.connect(self._save)
         b_load.clicked.connect(self._load)
+        b_defaults.clicked.connect(self._reset_defaults)
         self.status = QtWidgets.QLabel()
         btns.addWidget(b_reset)
         btns.addWidget(b_save)
         btns.addWidget(b_load)
+        btns.addWidget(b_defaults)
         btns.addWidget(self.status, 1)
         lay.addLayout(btns)
         lay.addStretch(1)
@@ -223,12 +227,24 @@ class SettingsDialog(QtWidgets.QDialog):
         except Exception as e:                     # corrupt JSON must not crash the app
             self.status.setText(f"読込失敗（ファイル破損?）: {e}")
             return
-        # copy fields in place so live references stay valid
-        for sec in ("signal", "normalize", "control", "game", "ui"):
-            src, dst = getattr(loaded, sec), getattr(self.cfg, sec)
-            for f in vars(src):
-                setattr(dst, f, getattr(src, f))
+        self.cfg.copy_tunables_from(loaded)        # in place → live engine refs stay valid
+        self._apply_loaded()
+        self.status.setText(f"読込: {_USER_CFG}")
+
+    def _reset_defaults(self):
+        if QtWidgets.QMessageBox.question(
+            self, "設定リセット",
+            "各スライダ設定を初期値に戻します。よろしいですか？\n"
+            "（接続設定は保持。『保存』するまでファイルには反映されません）",
+        ) != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+        self.cfg.copy_tunables_from(Config())      # defaults, in place (acquisition kept)
+        self._apply_loaded()
+        self.status.setText("設定を初期値に戻しました（保存で永続化）")
+
+    def _apply_loaded(self):
+        """Re-sync the engine + every widget to the current cfg (after load/reset)."""
         self.engine.rebuild_dsp()
         for row in self.rows:
             row.refresh()
-        self.status.setText(f"読込: {_USER_CFG}")
+        self.sat_curve.set_gain(self.cfg.normalize.sat_gain)

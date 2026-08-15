@@ -47,6 +47,24 @@ def test_config_load_or_default_on_missing(tmp_path):
     assert isinstance(cfg, Config)
 
 
+def test_copy_tunables_resets_sliders_but_keeps_acquisition():
+    # settings reset/load must restore the slider sections but PRESERVE the device
+    # setup (acquisition), and mutate in place so the live engine keeps its refs.
+    cfg = Config()
+    cfg.normalize.sat_gain = 2.9
+    cfg.game.reach_r = 0.099
+    cfg.acquisition.dll_path = "keep.dll"
+    cfg.acquisition.mac_hex = "ECFE7E1EB527"
+    norm_obj = cfg.normalize
+    cfg.copy_tunables_from(Config())              # reset to defaults
+    d = Config()
+    assert cfg.normalize.sat_gain == d.normalize.sat_gain    # tunables reset
+    assert cfg.game.reach_r == d.game.reach_r
+    assert cfg.acquisition.dll_path == "keep.dll"            # connection preserved
+    assert cfg.acquisition.mac_hex == "ECFE7E1EB527"
+    assert cfg.normalize is norm_obj                         # in place, not replaced
+
+
 def test_config_load_or_default_valid_roundtrip(tmp_path):
     p = tmp_path / "ok.json"
     c = Config()

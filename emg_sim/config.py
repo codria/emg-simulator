@@ -109,6 +109,11 @@ class AcquisitionConfig:
     right: int = 1                 # BioPotential channel index → right arm
 
 
+# the settings-window sections (everything the sliders touch) — NOT `acquisition`,
+# so resetting/loading tuning never disturbs the device/connection setup.
+_TUNABLE_SECTIONS = ("signal", "normalize", "control", "game", "ui")
+
+
 @dataclass
 class Config:
     signal: SignalConfig = field(default_factory=SignalConfig)
@@ -139,6 +144,15 @@ class Config:
             import sys
             print(f"config load failed ({path}): {e}; using defaults", file=sys.stderr)
             return cls()
+
+    def copy_tunables_from(self, other: "Config") -> None:
+        """Copy the settings-window sections (all except `acquisition`) from `other`
+        into this config *in place*, so the running engine's live references stay
+        valid. Backs both the settings dialog's Load and Reset-to-defaults."""
+        for sec in _TUNABLE_SECTIONS:
+            src, dst = getattr(other, sec), getattr(self, sec)
+            for f in vars(src):
+                setattr(dst, f, getattr(src, f))
 
 
 def _build(cls, d: dict):
