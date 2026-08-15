@@ -178,6 +178,15 @@ class SettingsDialog(QtWidgets.QDialog):
             lay.addWidget(box)
         self.sat_curve.set_gain(cfg.normalize.sat_gain)   # initial draw
 
+        # display toggles (checkboxes, live — the scene reads cfg.ui each frame)
+        dbox = QtWidgets.QGroupBox("表示")
+        dv = QtWidgets.QVBoxLayout(dbox)
+        self.cb_pole = QtWidgets.QCheckBox("先端マーカーポール")
+        self.cb_pole.setChecked(cfg.ui.show_tip_pole)
+        self.cb_pole.toggled.connect(lambda on: setattr(cfg.ui, "show_tip_pole", bool(on)))
+        dv.addWidget(self.cb_pole)
+        lay.addWidget(dbox)
+
         btns = QtWidgets.QHBoxLayout()
         b_reset = QtWidgets.QPushButton("ポーズリセット")
         b_reset.setToolTip("腕をホーム姿勢から再計算して逆関節を復帰（P キーでも可）")
@@ -255,3 +264,4 @@ class SettingsDialog(QtWidgets.QDialog):
         for row in self.rows:
             row.refresh()
         self.sat_curve.set_gain(self.cfg.normalize.sat_gain)
+        self.cb_pole.setChecked(self.cfg.ui.show_tip_pole)

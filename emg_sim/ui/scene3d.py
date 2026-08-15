@@ -429,10 +429,12 @@ class Scene3D(gl.GLViewWidget):
             w = (Ts[parent + 1] @ xform @ vh.T).T[:, :3]
             w[:, 2] = 0.0015
             ph.setMeshData(vertexes=w, faces=faces)
-        # marker pole to the tip's ground (x,y)
-        pm = np.eye(4)
-        pm[0, 3], pm[1, 3], pm[2, 3] = float(tip[0]), float(tip[1]), self._pole_z
-        self.pole.setTransform(pg.Transform3D(*pm.flatten()))
+        # marker pole to the tip's ground (x,y); toggled live from Settings
+        self.pole.setVisible(self.cfg.ui.show_tip_pole)
+        if self.cfg.ui.show_tip_pole:
+            pm = np.eye(4)
+            pm[0, 3], pm[1, 3], pm[2, 3] = float(tip[0]), float(tip[1]), self._pole_z
+            self.pole.setTransform(pg.Transform3D(*pm.flatten()))
         r_t = float(np.hypot(target_xyz[0], target_xyz[1]))
         th_t = float(np.arctan2(target_xyz[1], target_xyz[0]))
         self._set_target(r_t, th_t)

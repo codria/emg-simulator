@@ -92,6 +92,7 @@ class GameConfig:
 class UIConfig:
     marker_enabled: bool = True    # target marker on the bars (position control)
     marker_delay_sec: float = 3.0  # delayed fade-in
+    show_tip_pole: bool = True     # vertical marker pole at the arm tip's ground (x,y)
     show_waveform: bool = True     # raw waveforms on the right (top=R, bottom=L). The 2D plot
     #                                redraw is the heaviest per-frame CPU work; set False to
     #                                drop them entirely on a very weak machine (last resort).
