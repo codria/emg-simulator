@@ -76,10 +76,12 @@ def main(argv=None) -> int:
     try:
         eng.start_source()               # connect + adopt the device's real rate
     except Exception as e:
-        # Don't let a device that won't start kill the exhibit: fall back to dummy
-        # input so the app still runs (reconnect later from the C dialog).
-        print(f"acquisition start failed ({e}); falling back to dummy input — "
-              f"reconnect the device from the Connection (C) dialog.", file=sys.stderr)
+        # A saved device that isn't on (e.g. launching away from the exhibit) fails
+        # here — that's fine, we fall back to dummy. Collapse the pythonnet/.NET
+        # exception to one line (its full stack trace looks alarming but isn't a bug).
+        msg = str(e).splitlines()[0].split(" ---> ")[0].strip() or repr(e)
+        print(f"BioRadio auto-connect failed ({msg}); starting on dummy input. Turn the "
+              f"device on and reconnect from the Connection (C) dialog.", file=sys.stderr)
         from .acquisition import DummySource
         try:
             eng.set_source(DummySource(cfg, mode="auto" if eng.attract else "manual"))
