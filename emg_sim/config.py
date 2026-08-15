@@ -92,7 +92,10 @@ class GameConfig:
 class UIConfig:
     marker_enabled: bool = True    # target marker on the bars (position control)
     marker_delay_sec: float = 3.0  # delayed fade-in
-    show_waveform: bool = True     # raw waveforms on the right (top=R, bottom=L)
+    show_waveform: bool = True     # raw waveforms on the right (top=R, bottom=L). The 2D
+    #                                plot redraw is the heaviest per-frame CPU work — turn
+    #                                off (or use --light) on a weak/integrated-GPU machine.
+    msaa: int = 4                  # 3D anti-aliasing samples; lower (2) or 0 for weak GPUs
     sfx_enabled: bool = True       # sound effects (reach + zone-enter)
     sfx_reach: str = "assets/sfx/reach.wav"  # reach-success; no-op if missing
     sfx_enter: str = "assets/sfx/enter.wav"  # subtle click when the tip enters the target zone

@@ -48,8 +48,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.bar_left = BarWidget("Left", "向き θ" if left_is_theta else "伸び r", cfg, theme.L_COLOR)
         self.bar_right = BarWidget("Right", "伸び r" if left_is_theta else "向き θ", cfg, theme.R_COLOR)
         self.scene = Scene3D(cfg)
-        self.wave_left = WaveformPlot("Left Arm EMG", theme.L_COLOR, cfg)
-        self.wave_right = WaveformPlot("Right Arm EMG", theme.R_COLOR, cfg)
+        # The 2D waveform plots are the heaviest per-frame CPU work; skip them entirely
+        # when disabled (config show_waveform / --light) for weak / integrated-GPU machines.
+        if cfg.ui.show_waveform:
+            self.wave_left = WaveformPlot("Left Arm EMG", theme.L_COLOR, cfg)
+            self.wave_right = WaveformPlot("Right Arm EMG", theme.R_COLOR, cfg)
+        else:
+            self.wave_left = self.wave_right = None
         # real WAV if present (exhibit machine), else a synthesized fresh-clone fallback
         self.sfx = Sfx(cfg.ui.sfx_reach, cfg.ui.sfx_volume, synth="reach") if cfg.ui.sfx_enabled else Sfx(None)
         self.sfx_enter = Sfx(cfg.ui.sfx_enter, cfg.ui.sfx_volume, synth="enter") if cfg.ui.sfx_enabled else Sfx(None)
@@ -115,7 +120,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         row2 = QtWidgets.QHBoxLayout()
         row2.setSpacing(8)
-        row2.addWidget(self.wave_left, 1)
+        has_wave = self.wave_left is not None
+        row2.addWidget(self.wave_left, 1) if has_wave else row2.addStretch(1)
         srow = QtWidgets.QHBoxLayout()
         srow.addWidget(QtWidgets.QLabel("L"))
         srow.addWidget(self.sl_left)
@@ -125,10 +131,10 @@ class MainWindow(QtWidgets.QMainWindow):
         sbox.setLayout(srow)
         sbox.setFixedWidth(150)
         row2.addWidget(sbox)
-        row2.addWidget(self.wave_right, 1)
+        row2.addWidget(self.wave_right, 1) if has_wave else row2.addStretch(1)
 
         outer.addLayout(row1, 3)
-        outer.addLayout(row2, 2)
+        outer.addLayout(row2, 2 if has_wave else 0)   # no waveforms → give the arm the space
         self.setCentralWidget(central)
 
     # -- loop --------------------------------------------------------------
@@ -251,12 +257,13 @@ class MainWindow(QtWidgets.QMainWindow):
         # Waveforms scroll over a ~10 s window, so ~20 fps looks identical — but their
         # 10k–20k-point redraw + percentile autoscale is the heaviest per-frame 2D work.
         # Update them every 3rd frame so the arm (and a dragged slider) stay smooth.
-        self._wave_frame = (getattr(self, "_wave_frame", 0) + 1) % 3
-        if self._wave_frame == 0:
-            self.wave_left.update_state(eng.waveform(0), eng.amp_history(0),
-                                        eng.norm.baseline[0], eng.norm.scale[0], eng.norm.peak[0])
-            self.wave_right.update_state(eng.waveform(1), eng.amp_history(1),
-                                         eng.norm.baseline[1], eng.norm.scale[1], eng.norm.peak[1])
+        if self.wave_left is not None:
+            self._wave_frame = (getattr(self, "_wave_frame", 0) + 1) % 3
+            if self._wave_frame == 0:
+                self.wave_left.update_state(eng.waveform(0), eng.amp_history(0),
+                                            eng.norm.baseline[0], eng.norm.scale[0], eng.norm.peak[0])
+                self.wave_right.update_state(eng.waveform(1), eng.amp_history(1),
+                                             eng.norm.baseline[1], eng.norm.scale[1], eng.norm.peak[1])
 
         # Bars show the REACH FRACTION a_eff = activation / full_ref (0 = r_min/θ_min,
         # 1 = r_max/θ_max) — i.e. what the arm actually drives to, so a full drive

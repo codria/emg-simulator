@@ -30,6 +30,9 @@ def main(argv=None) -> int:
     ap.add_argument("--device", help="BioRadio device name to match (with --bioradio)")
     ap.add_argument("--list-devices", action="store_true",
                     help="with --bioradio: scan, print devices, exit")
+    ap.add_argument("--light", action="store_true",
+                    help="lightweight mode for weak / integrated-GPU machines: "
+                         "no waveforms and no MSAA (the biggest per-frame costs)")
     args = ap.parse_args(argv)
 
     if args.config:
@@ -53,6 +56,10 @@ def main(argv=None) -> int:
         if args.device:
             cfg.acquisition.device = args.device
 
+    if args.light:                          # weak-machine overrides (biggest per-frame costs)
+        cfg.ui.show_waveform = False
+        cfg.ui.msaa = 0
+
     if args.list_devices:
         if not cfg.acquisition.dll_path:
             ap.error("--list-devices requires --bioradio <DLL>")
@@ -65,7 +72,8 @@ def main(argv=None) -> int:
     source = make_source(cfg)
 
     fmt = QtGui.QSurfaceFormat()
-    fmt.setSamples(4)                    # 4x MSAA (anti-aliasing) for the 3D scene
+    if cfg.ui.msaa > 0:                   # MSAA for the 3D scene (0 = off, for weak GPUs)
+        fmt.setSamples(cfg.ui.msaa)
     QtGui.QSurfaceFormat.setDefaultFormat(fmt)
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv[:1])
 
