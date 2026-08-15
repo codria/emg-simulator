@@ -35,10 +35,10 @@ class NormalizeConfig:
     soft_sat: bool = True          # tanh soft saturation
     sat_gain: float = 1.2          # activation = tanh(sat_gain * x / scale)
     adapt_rate: float = 0.05       # scale adaptation speed toward the peak (0 = off)
-    fallback_scale: float = 0.5    # scale floor/initial in MILLIVOLTS (~0.5 mV, half a
-                                   # typical ~1 mV EMG). Below the flex peak so the
-                                   # leaky-peak can adapt down to it; lower = more sensitive.
-    peak_halflife_sec: float = 120.0 # leaky-peak decay: stale highs fade (≈ recent-max
+    fallback_scale: float = 0.05   # scale floor/initial in MILLIVOLTS (sensitive; tuned on
+                                   # the real device). Below the flex peak so the leaky-peak
+                                   # can adapt down to it; lower = more sensitive.
+    peak_halflife_sec: float = 60.0  # leaky-peak decay: stale highs fade (≈ recent-max
                                      # window) so a one-off artifact / max clench doesn't
                                      # latch the scale up forever and block the extremes
 
@@ -77,8 +77,8 @@ class ControlConfig:
 class GameConfig:
     # Target hit zone is an (r, θ) box (a fan wedge), tuned per-axis so the θ
     # difficulty (high-gain: arc = r·Δθ) can be eased independently of r.
-    reach_r: float = 0.05          # radial half-tolerance (m): |r_tip − r_target|
-    reach_theta_deg: float = 7.0   # angular half-tolerance (deg): |θ_tip − θ_target|
+    reach_r: float = 0.08          # radial half-tolerance (m): |r_tip − r_target|
+    reach_theta_deg: float = 22.0  # angular half-tolerance (deg): |θ_tip − θ_target|
     hold_sec: float = 0.4          # dwell time to count as reached (0.3–0.5)
     targets_per_round: int = 5     # 5 reaches → time → reset
     min_target_sep: float = 0.15   # next target at least this far from current

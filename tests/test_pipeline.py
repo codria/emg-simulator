@@ -216,8 +216,20 @@ def test_game_target_respects_edge_margin():
 
 
 # -- engine integration -----------------------------------------------------
+def _capture_rest_baseline(eng, steps=120):
+    """Capture the resting baseline (as the operator does with B). The default
+    fallback_scale is device-tuned (sensitive), so without a baseline the dummy's
+    resting amplitude would saturate — real use always calibrates first."""
+    eng.source.set_drive(0.0, 0.0)
+    eng.start_baseline()
+    for _ in range(steps):
+        eng.step(1 / 60)
+    eng.finish_baseline()
+
+
 def test_engine_full_drive_reaches_out():
     eng = Engine(seed=3)
+    _capture_rest_baseline(eng)
     eng.source.set_drive(1.0, 1.0)
     for _ in range(180):  # ~3 s
         eng.step(1 / 60)
@@ -227,6 +239,7 @@ def test_engine_full_drive_reaches_out():
 
 def test_engine_zero_drive_stays_in():
     eng = Engine(seed=4)
+    _capture_rest_baseline(eng)
     eng.source.set_drive(0.0, 0.0)
     for _ in range(600):  # 10 s idle — attract is D-key only now, no auto-enter
         eng.step(1 / 60)
