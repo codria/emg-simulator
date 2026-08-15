@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from PySide6 import QtGui, QtWidgets
 
@@ -31,10 +32,19 @@ def main(argv=None) -> int:
                     help="with --bioradio: scan, print devices, exit")
     args = ap.parse_args(argv)
 
-    cfg = Config.load_or_default(args.config) if args.config else Config()
+    if args.config:
+        cfg = Config.load_or_default(args.config)
+    else:
+        # Restore the last saved setup (DLL path, device, tuning) so it persists across
+        # launches without retyping — the Connection/Settings dialogs write this file.
+        _user = Path("config") / "user.json"
+        cfg = Config.load_or_default(str(_user)) if _user.exists() else Config()
 
-    # CLI selects the launch source; the in-app Connection dialog (C key) can
-    # switch at runtime. Seed cfg.acquisition so the dialog reflects the CLI.
+    # CLI selects the launch source; the in-app Connection dialog (C key) can switch
+    # at runtime. With --bioradio the CLI wins; without it we keep whatever the config
+    # restored — dummy by default, or a saved BioRadio setup so the exhibit
+    # auto-reconnects to the same device on launch (falling back to dummy below if it
+    # can't start).
     if args.bioradio:
         cfg.acquisition.source = "bioradio"
         cfg.acquisition.dll_path = args.bioradio
@@ -42,8 +52,6 @@ def main(argv=None) -> int:
             cfg.acquisition.mac_hex = args.mac
         if args.device:
             cfg.acquisition.device = args.device
-    else:
-        cfg.acquisition.source = "dummy"   # no --bioradio → dummy this launch
 
     if args.list_devices:
         if not cfg.acquisition.dll_path:

@@ -14,7 +14,7 @@ from pathlib import Path
 
 from PySide6 import QtWidgets
 
-from ..acquisition import discover, make_source
+from ..acquisition import BioRadioSource, DummySource, discover, make_source
 
 _USER_CFG = Path("config") / "user.json"
 _OK, _ERR, _WARN = "#2f9e57", "#c0504d", "#b8860b"
@@ -83,11 +83,15 @@ class ConnectionDialog(QtWidgets.QDialog):
         btns = QtWidgets.QHBoxLayout()
         self.b_apply = QtWidgets.QPushButton("適用（接続）")
         self.b_apply.clicked.connect(self._apply)
+        self.b_disc = QtWidgets.QPushButton("接続解除")
+        self.b_disc.setToolTip("BioRadio を切断してダミー入力に戻す（機器を解放）")
+        self.b_disc.clicked.connect(self._disconnect)
         b_save = QtWidgets.QPushButton("保存")
         b_save.clicked.connect(self._save)
         b_close = QtWidgets.QPushButton("閉じる")
         b_close.clicked.connect(self.close)
         btns.addWidget(self.b_apply)
+        btns.addWidget(self.b_disc)
         btns.addWidget(b_save)
         btns.addStretch(1)
         btns.addWidget(b_close)
@@ -142,6 +146,11 @@ class ConnectionDialog(QtWidgets.QDialog):
         a.left, a.right = self.sp_left.value(), self.sp_right.value()
         if a.source == "bioradio" and self.cmb.currentData() is not None:
             a.mac_hex = f"{self.cmb.currentData():012X}"   # from the scanned selection
+        # A BioRadio allows only ONE connection: re-applying while it's still held
+        # fails with "occupied". Require an explicit disconnect first (button below).
+        if a.source == "bioradio" and isinstance(self.engine.source, BioRadioSource):
+            self._set_status("既に BioRadio 接続中です。再接続/切替は先に『接続解除』を押してください。", _WARN)
+            return
         self._set_status("接続中…" if a.source == "bioradio" else "切替中…", _WARN)
         self.b_apply.setEnabled(False)
         QtWidgets.QApplication.processEvents()
@@ -152,7 +161,33 @@ class ConnectionDialog(QtWidgets.QDialog):
             return
         finally:
             self.b_apply.setEnabled(True)
+        self._persist()                       # remember the setup so next launch reconnects
         self._set_status(self._state_text(), _OK)
+
+    def _disconnect(self) -> None:
+        if not isinstance(self.engine.source, BioRadioSource):
+            self._set_status("BioRadio は接続されていません（ダミー入力中）。", _WARN)
+            return
+        self.b_disc.setEnabled(False)
+        QtWidgets.QApplication.processEvents()
+        try:
+            self.engine.set_source(DummySource(self.cfg))   # stops the device, frees it
+        except Exception as e:
+            self._set_status(f"接続解除失敗: {e}", _ERR)
+            return
+        finally:
+            self.b_disc.setEnabled(True)
+        self.rb_dummy.setChecked(True)        # reflect the switch in the UI
+        self._set_status("接続解除しました（ダミー入力）。再接続は数秒おいてから。", _OK)
+
+    def _persist(self) -> None:
+        """Save the current config (DLL path/device/tuning) so the setup survives a
+        relaunch — best-effort, never blocks connecting."""
+        try:
+            _USER_CFG.parent.mkdir(exist_ok=True)
+            self.cfg.save(_USER_CFG)
+        except Exception:
+            pass
 
     def _save(self) -> None:
         _USER_CFG.parent.mkdir(exist_ok=True)
