@@ -20,6 +20,12 @@ _USER_CFG = Path("config") / "user.json"
 _OK, _ERR, _WARN = "#2f9e57", "#c0504d", "#b8860b"
 
 
+def _short_err(e: Exception) -> str:
+    """One-line summary of an exception. pythonnet/.NET errors carry a big stack
+    trace (`場所 …` frames) we don't want filling the status label."""
+    return str(e).splitlines()[0].split(" ---> ")[0].strip() or repr(e)
+
+
 class ConnectionDialog(QtWidgets.QDialog):
     def __init__(self, engine, cfg, parent=None):
         super().__init__(parent)
@@ -55,6 +61,11 @@ class ConnectionDialog(QtWidgets.QDialog):
         self.b_scan = QtWidgets.QPushButton("スキャン")
         self.b_scan.clicked.connect(self._scan)
         self.cmb = QtWidgets.QComboBox()
+        if a.mac_hex:                            # show the remembered device so the field
+            try:                                 # isn't empty (re-connectable without a rescan)
+                self.cmb.addItem(f"(保存済み)  {a.mac_hex}", int(a.mac_hex, 16))
+            except ValueError:
+                pass
         scan_row.addWidget(self.b_scan)
         scan_row.addWidget(self.cmb, 1)
         form.addRow("デバイス", scan_row)
@@ -127,7 +138,7 @@ class ConnectionDialog(QtWidgets.QDialog):
         try:
             devices = discover(self.ed_dll.text().strip())
         except Exception as e:
-            self._set_status(f"スキャン失敗: {e}", _ERR)
+            self._set_status(f"スキャン失敗: {_short_err(e)}", _ERR)
             return
         finally:
             self.b_scan.setEnabled(True)
@@ -145,11 +156,15 @@ class ConnectionDialog(QtWidgets.QDialog):
         a.dll_path = self.ed_dll.text().strip()
         a.left, a.right = self.sp_left.value(), self.sp_right.value()
         if a.source == "bioradio" and self.cmb.currentData() is not None:
-            a.mac_hex = f"{self.cmb.currentData():012X}"   # from the scanned selection
+            a.mac_hex = f"{self.cmb.currentData():012X}"   # from the scanned/remembered selection
         # A BioRadio allows only ONE connection: re-applying while it's still held
         # fails with "occupied". Require an explicit disconnect first (button below).
         if a.source == "bioradio" and isinstance(self.engine.source, BioRadioSource):
             self._set_status("既に BioRadio 接続中です。再接続/切替は先に『接続解除』を押してください。", _WARN)
+            return
+        # Don't attempt a connect with no device chosen — it can only fail.
+        if a.source == "bioradio" and self.cmb.currentData() is None:
+            self._set_status("デバイスが選択されていません。『スキャン』して選択してください。", _WARN)
             return
         self._set_status("接続中…" if a.source == "bioradio" else "切替中…", _WARN)
         self.b_apply.setEnabled(False)
@@ -157,7 +172,7 @@ class ConnectionDialog(QtWidgets.QDialog):
         try:
             self.engine.set_source(make_source(self.cfg))
         except Exception as e:
-            self._set_status(f"接続失敗: {e}", _ERR)
+            self._set_status(f"接続失敗: {_short_err(e)}", _ERR)
             return
         finally:
             self.b_apply.setEnabled(True)
@@ -173,7 +188,7 @@ class ConnectionDialog(QtWidgets.QDialog):
         try:
             self.engine.set_source(DummySource(self.cfg))   # stops the device, frees it
         except Exception as e:
-            self._set_status(f"接続解除失敗: {e}", _ERR)
+            self._set_status(f"接続解除失敗: {_short_err(e)}", _ERR)
             return
         finally:
             self.b_disc.setEnabled(True)
