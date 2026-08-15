@@ -142,6 +142,7 @@ _C_TARGET_CHARGE = _rgb(theme.TARGET, 0.85)  # bright "charging" fill that grows
 _C_FLASH = (0.80, 1.0, 0.84)                 # near-white green completion flash (RGB; α set live)
 
 _FLASH_SEC = 0.28                            # completion-flash duration
+_C_POLE = (1.0, 0.60, 0.22)            # tip marker pole (warm orange, stands out)
 _C_FAN = _rgb(theme.FAN, 1.0)
 _C_FAN_FILL = _rgb(theme.FAN, 0.16)
 _C_FRONT = _rgb(theme.FRONT, 1.0)
@@ -188,6 +189,19 @@ class Scene3D(gl.GLViewWidget):
                             color=(0.34, 0.36, 0.42, 1.0), shader=_BRIGHT, glOptions="opaque")
         ped.translate(0, 0, z_floor + 0.025)  # spans -0.05..0.0
         self.addItem(ped)
+
+        # Vertical marker pole at the arm tip's (x,y): rises from the floor to just past
+        # the tip so you can read where the tip sits on the plane. OPAQUE (writes depth)
+        # so the translucent fan / target fills tint it correctly where they cross in
+        # front, and the arm occludes it where it passes in front.
+        _pole_top = 0.06
+        pole_v, pole_n = armmesh.cylinder_tris(0.012, _pole_top - z_floor, 20)
+        pole_md = gl.MeshData(vertexes=pole_v, faces=np.arange(len(pole_v)).reshape(-1, 3))
+        pole_md._vertexNormals = pole_n.astype(np.float32)
+        self._pole_z = 0.5 * (z_floor + _pole_top)     # cylinder is centred on its z axis
+        self.pole = gl.GLMeshItem(meshdata=pole_md, smooth=True, color=(*_C_POLE, 1.0),
+                                  shader=_BRIGHT, glOptions="opaque")
+        self.addItem(self.pole)
 
         # reach fan: translucent fill + outline + front arrow (all live)
         self._fan_fill = gl.GLMeshItem(smooth=False, color=_C_FAN_FILL,
@@ -415,6 +429,10 @@ class Scene3D(gl.GLViewWidget):
             w = (Ts[parent + 1] @ xform @ vh.T).T[:, :3]
             w[:, 2] = 0.0015
             ph.setMeshData(vertexes=w, faces=faces)
+        # marker pole to the tip's ground (x,y)
+        pm = np.eye(4)
+        pm[0, 3], pm[1, 3], pm[2, 3] = float(tip[0]), float(tip[1]), self._pole_z
+        self.pole.setTransform(pg.Transform3D(*pm.flatten()))
         r_t = float(np.hypot(target_xyz[0], target_xyz[1]))
         th_t = float(np.arctan2(target_xyz[1], target_xyz[0]))
         self._set_target(r_t, th_t)
