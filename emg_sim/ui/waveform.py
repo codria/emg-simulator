@@ -1,5 +1,6 @@
 """Single-channel EMG plot: the amplitude-domain terms that make up the control
-value. Shows the raw signal and the smoothed envelope ``amp``, plus the three
+value. Shows the band-pass-filtered EMG (AC-coupled, so the ground line doesn't
+drift with the electrode DC offset) and the smoothed envelope ``amp``, plus the three
 references the normalization uses — ``baseline`` (subtracted), ``scale`` (the
 divisor, drawn at ``baseline+scale`` = the "full effort" level) and the leaky
 ``peak`` the scale follows. Everything is on one amplitude axis (a.u.); the 0–1
@@ -63,7 +64,7 @@ class WaveformPlot(QtWidgets.QWidget):
         self.rms_region.setZValue(-10)
         self.p.addItem(self.rms_region)
 
-        self.raw = self.p.plot(pen=pg.mkPen(_dim(color), width=1), name="raw")
+        self.raw = self.p.plot(pen=pg.mkPen(_dim(color), width=1), name="filtered")
         self.amp = self.p.plot(pen=pg.mkPen(color, width=2), name="amp (envelope)")
 
         # the three terms of  activation = tanh(sat_gain·(amp − baseline) / scale):

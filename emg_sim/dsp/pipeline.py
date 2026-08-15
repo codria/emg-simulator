@@ -12,8 +12,10 @@ from .filter import EMGFilter
 
 class RMSPipeline:
     """Front-end filter → rectify/RMS over a sliding window → light EMA. Keeps a
-    longer rolling buffer of the *raw* (pre-filter) samples for the on-screen
-    waveform, while the RMS is computed on the filtered signal.
+    longer rolling buffer of the *filtered* samples for the on-screen waveform, so
+    the display is AC-coupled (the band-pass removes the electrode DC offset and
+    baseline drift that would otherwise make the ground line wander) and matches
+    the signal the RMS acts on. Disable the filter → the buffer shows raw.
     """
 
     def __init__(self, cfg):
@@ -32,8 +34,8 @@ class RMSPipeline:
         filt = self.filter.process(raw)
         for ch in range(2):
             if raw.size:
-                self._disp[ch].extend(raw[:, ch])   # display = raw ("生波形")
-                self._win[ch].extend(filt[:, ch])   # RMS = filtered
+                self._disp[ch].extend(filt[:, ch])  # display = filtered (AC-coupled)
+                self._win[ch].extend(filt[:, ch])   # RMS = same filtered signal
             if self._win[ch]:
                 w = np.fromiter(self._win[ch], float)
                 self.rms[ch] = math.sqrt(float(np.mean(w * w)))
