@@ -142,8 +142,6 @@ _C_TARGET_CHARGE = _rgb(theme.TARGET, 0.85)  # bright "charging" fill that grows
 _C_FLASH = (0.80, 1.0, 0.84)                 # near-white green completion flash (RGB; α set live)
 
 _FLASH_SEC = 0.28                            # completion-flash duration
-_C_TIP = _rgb(theme.TIP, 1.0)
-_C_TIP_HIT = _rgb(theme.TARGET, 1.0)         # tip marker turns green while on target
 _C_FAN = _rgb(theme.FAN, 1.0)
 _C_FAN_FILL = _rgb(theme.FAN, 0.16)
 _C_FRONT = _rgb(theme.FRONT, 1.0)
@@ -296,10 +294,6 @@ class Scene3D(gl.GLViewWidget):
         _c = self.cfg.control                          # seed valid geometry before first paint
         self._set_target(0.5 * (_c.r_min + _c.r_max), 0.5 * (_c.theta_min + _c.theta_max))
 
-        pmd = gl.MeshData.sphere(rows=8, cols=8, radius=0.018)
-        self.tipmark = gl.GLMeshItem(meshdata=pmd, smooth=True, color=_C_TIP, shader=_BRIGHT)
-        self.addItem(self.tipmark)
-
     def paintGL(self, *args, **kwds):
         # The fan fill draws with glDepthMask(False); pyqtgraph doesn't restore it,
         # so re-enable depth writes here (before glClear) or the depth buffer never
@@ -421,7 +415,6 @@ class Scene3D(gl.GLViewWidget):
             w = (Ts[parent + 1] @ xform @ vh.T).T[:, :3]
             w[:, 2] = 0.0015
             ph.setMeshData(vertexes=w, faces=faces)
-        self._place(self.tipmark, tip)
         r_t = float(np.hypot(target_xyz[0], target_xyz[1]))
         th_t = float(np.arctan2(target_xyz[1], target_xyz[0]))
         self._set_target(r_t, th_t)
@@ -431,7 +424,6 @@ class Scene3D(gl.GLViewWidget):
             self._flash_rt = self._prev_target_rt
         self._update_flash(dt)
         self._prev_target_rt = (r_t, th_t)
-        self.tipmark.setColor(_C_TIP_HIT if hold_frac > 1e-3 else _C_TIP)
 
         # r / θ overlay for the live arm TIP (teach polar coords; moves as you flex)
         z = self.cfg.control.z_plane
