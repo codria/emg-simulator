@@ -90,6 +90,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._elapsed = QtCore.QElapsedTimer()
         self._elapsed.start()
         self._timer = QtCore.QTimer(self)
+        # 16ms needs ~1ms timer resolution; the default CoarseTimer beats against Windows'
+        # ~15.6ms tick (fires at 15.6 or 31.2ms) → the render wanders around ~40fps.
+        self._timer.setTimerType(QtCore.Qt.TimerType.PreciseTimer)
         self._timer.timeout.connect(self._on_timer)
         self._timer.start(16)
 
