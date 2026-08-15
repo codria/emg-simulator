@@ -195,7 +195,7 @@ class Scene3D(gl.GLViewWidget):
         # so the translucent fan / target fills tint it correctly where they cross in
         # front, and the arm occludes it where it passes in front.
         _pole_top = 0.06
-        pole_v, pole_n = armmesh.cylinder_tris(0.012, _pole_top - z_floor, 20)
+        pole_v, pole_n = armmesh.cylinder_tris(0.007, _pole_top - z_floor, 20)
         pole_md = gl.MeshData(vertexes=pole_v, faces=np.arange(len(pole_v)).reshape(-1, 3))
         pole_md._vertexNormals = pole_n.astype(np.float32)
         self._pole_z = 0.5 * (z_floor + _pole_top)     # cylinder is centred on its z axis
