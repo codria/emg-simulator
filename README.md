@@ -21,6 +21,10 @@ pip install -r requirements.txt
 python -m emg_sim.app --auto        # attract/demo — drop --auto to drive it yourself
 ```
 
+On Windows, once set up you can instead double-click **`run.bat`** (repo root) — it
+finds your `.venv` or the `env_emg-simulator` conda env and launches the app;
+extra args pass through, e.g. `run.bat --auto`.
+
 Full clone-to-run walkthrough (venv/conda, Windows long-path note, troubleshooting):
 **[docs/QUICKSTART.md](docs/QUICKSTART.md)**.
 

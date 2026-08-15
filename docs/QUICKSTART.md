@@ -60,6 +60,10 @@ python -m emg_sim.app --auto     # start in attract / demo mode
 
 You should see the 3D arm + two EMG bars + waveforms + the reaching game.
 
+> **Windows shortcut:** double-click **`run.bat`** in the repo root instead — it
+> uses your `.venv` if present, else activates the `env_emg-simulator` conda env,
+> then launches the app. Extra args pass through (e.g. `run.bat --auto`).
+
 ### Controls
 
 | Key | Action |
