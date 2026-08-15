@@ -18,10 +18,18 @@ _USER_CFG = Path("config") / "user.json"
 
 
 class _SliderRow(QtWidgets.QWidget):
-    def __init__(self, label, obj, attr, lo, hi, decimals=2, on_change=None):
+    def __init__(self, label, obj, attr, lo, hi, decimals=2, on_change=None, debounce=False):
         super().__init__()
         self.obj, self.attr, self.lo, self.hi = obj, attr, lo, hi
         self.decimals, self.on_change = decimals, on_change
+        self._timer = None
+        if on_change is not None and debounce:
+            # coalesce a rapid drag into one callback so an expensive on_change
+            # (rebuild_dsp) doesn't fire hundreds of times and freeze the UI
+            self._timer = QtCore.QTimer(self)
+            self._timer.setSingleShot(True)
+            self._timer.setInterval(150)
+            self._timer.timeout.connect(on_change)
         h = QtWidgets.QHBoxLayout(self)
         h.setContentsMargins(0, 0, 0, 0)
         name = QtWidgets.QLabel(label)
@@ -42,10 +50,13 @@ class _SliderRow(QtWidgets.QWidget):
 
     def _changed(self, v):
         value = round(self.lo + (v / 1000.0) * (self.hi - self.lo), self.decimals)
-        setattr(self.obj, self.attr, value)
+        setattr(self.obj, self.attr, value)      # live: the running engine reads it at once
         self.val.setText(f"{value:.{self.decimals}f}")
         if self.on_change:
-            self.on_change()
+            if self._timer is not None:
+                self._timer.start()              # debounced (expensive, e.g. DSP rebuild)
+            else:
+                self.on_change()                 # immediate (cheap, e.g. curve preview)
 
     def refresh(self):
         cur = getattr(self.obj, self.attr)
@@ -158,7 +169,8 @@ class SettingsDialog(QtWidgets.QDialog):
             for label, obj, attr, lo, hi, dec, cb in specs:
                 if attr == "sat_gain":
                     cb = lambda: self.sat_curve.set_gain(cfg.normalize.sat_gain)
-                row = _SliderRow(label, obj, attr, lo, hi, dec, cb)
+                # debounce only the expensive DSP rebuild (RMS window / EMA sliders)
+                row = _SliderRow(label, obj, attr, lo, hi, dec, cb, debounce=(cb is rebuild))
                 self.rows.append(row)
                 v.addWidget(row)
                 if attr == "sat_gain":
