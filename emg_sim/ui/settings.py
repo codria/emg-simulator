@@ -189,13 +189,20 @@ class SettingsDialog(QtWidgets.QDialog):
         b_save.clicked.connect(self._save)
         b_load.clicked.connect(self._load)
         b_defaults.clicked.connect(self._reset_defaults)
-        self.status = QtWidgets.QLabel()
         btns.addWidget(b_reset)
         btns.addWidget(b_save)
         btns.addWidget(b_load)
         btns.addWidget(b_defaults)
-        btns.addWidget(self.status, 1)
+        btns.addStretch(1)
         lay.addLayout(btns)
+        # status on its own row: word-wrapped with a reserved height, so a longer
+        # message (e.g. the reset note) wraps within the fixed width instead of
+        # stretching the window.
+        self.status = QtWidgets.QLabel()
+        self.status.setWordWrap(True)
+        self.status.setMinimumHeight(34)
+        self.status.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop | QtCore.Qt.AlignmentFlag.AlignLeft)
+        lay.addWidget(self.status)
         lay.addStretch(1)
         self.resize(480, 650)
 
