@@ -11,8 +11,12 @@ frames, right after `QSoundEffect.play()` returned.
 
 On Windows we instead play the WAV with the lightweight native `winsound` — no
 device enumeration, no FFmpeg — on a short-lived daemon thread, so even a slow
-audio-device open can never touch the GUI thread. Elsewhere (dev machines, where
-the stall doesn't occur) we fall back to QSoundEffect.
+audio-device open can never touch the GUI thread. Playback is non-blocking
+(`SND_ASYNC`), so a new trigger replaces the current sound instead of the
+synchronous calls serializing into a backlog; `play()` is also debounced
+(`_debounced`) so a jittery trigger can't queue up plays in the first place.
+Elsewhere (dev machines, where the stall doesn't occur) we fall back to
+QSoundEffect.
 
 Source priority is unchanged:
   1. the configured asset WAV if present (the real 効果音ラボ sound — not committed,
@@ -29,6 +33,7 @@ from __future__ import annotations
 
 import sys
 import threading
+import time
 from pathlib import Path
 
 _IS_WIN = sys.platform.startswith("win")
@@ -44,9 +49,12 @@ def _resolve_src(path, synth: str | None) -> str | None:
 
 
 class Sfx:
-    def __init__(self, path, volume: float = 0.7, synth: str | None = None):
+    def __init__(self, path, volume: float = 0.7, synth: str | None = None,
+                 min_interval: float = 0.15):
         self._wav = _resolve_src(path, synth)
         self._volume = float(volume)
+        self._min_interval = float(min_interval)  # debounce window (s), see _debounced()
+        self._last_play = float("-inf")           # monotonic time of the last accepted play
         self._eff = None                          # QSoundEffect (non-Windows only), lazy
         if self._wav is not None and not _IS_WIN:
             self._init_qt()
@@ -67,8 +75,20 @@ class Sfx:
     def available(self) -> bool:
         return self._wav is not None
 
+    def _debounced(self) -> bool:
+        """True if this call falls within the debounce window of the last accepted
+        play (so the caller should skip it). Collapses rapid re-triggers — e.g. the
+        tip jittering on a zone boundary fires the enter-click's rising edge every
+        frame — into at most one play per `min_interval`, so plays can never pile
+        into an audible backlog. Called only from the GUI thread (no lock needed)."""
+        now = time.monotonic()
+        if now - self._last_play < self._min_interval:
+            return True
+        self._last_play = now
+        return False
+
     def play(self) -> None:
-        if self._wav is None:
+        if self._wav is None or self._debounced():
             return
         if _IS_WIN:
             # Fire on a daemon thread: winsound opens only the default device (no
@@ -84,6 +104,12 @@ class Sfx:
         try:
             import winsound
 
-            winsound.PlaySound(self._wav, winsound.SND_FILENAME | winsound.SND_NODEFAULT)
+            # SND_ASYNC: fire-and-forget, non-blocking. A new sound *replaces* the
+            # current one on winsound's single global channel — the synchronous call
+            # (no SND_ASYNC) instead blocks the thread for the whole clip, so rapid
+            # triggers serialized into a queue that drained audibly after the fact.
+            winsound.PlaySound(
+                self._wav, winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT
+            )
         except Exception:
             pass
