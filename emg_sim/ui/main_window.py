@@ -227,6 +227,16 @@ class MainWindow(QtWidgets.QMainWindow):
             drive = np.clip(np.maximum(sl, self._key_drive), 0.0, 1.0)
             if hasattr(self.engine.source, "set_drive"):
                 self.engine.source.set_drive(drive[0], drive[1])
+        else:
+            # demo: reflect the dummy's internal auto-drive on the sliders so they
+            # visibly move. blockSignals so setValue doesn't fire valueChanged →
+            # notify_user_input, which would immediately drop out of attract.
+            d = getattr(self.engine.source, "drive", None)
+            if d is not None:
+                for s, v in ((self.sl_left, d[0]), (self.sl_right, d[1])):
+                    s.blockSignals(True)
+                    s.setValue(int(round(float(v) * 100)))
+                    s.blockSignals(False)
 
         t_step = time.perf_counter()
         ev = self.engine.step(dt)
