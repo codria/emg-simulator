@@ -39,6 +39,25 @@ _LINE_GL = {
     "glDepthMask": (GL.GL_FALSE,),
 }
 
+# Shadow cast onto the PEDESTAL TOP (a plane at z=0): GL_EQUAL depth test so it
+# only draws where a surface already sits at exactly z=0 (the pedestal top cap) —
+# it lands on the pedestal but never floats over the lower floor. depthFunc leaks
+# to later items, so this is drawn last and the floor board resets it to GL_LESS.
+_PED_SHADOW_GL = {
+    GL.GL_DEPTH_TEST: True,
+    GL.GL_BLEND: True,
+    GL.GL_CULL_FACE: False,
+    "glBlendFunc": (GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA),
+    "glDepthFunc": (GL.GL_EQUAL,),
+    "glDepthMask": (GL.GL_FALSE,),
+}
+# Opaque preset + an explicit GL_LESS reset (the floor board draws first each frame,
+# so it clears any GL_EQUAL left by the pedestal shadow).
+_OPAQUE_LESS = {
+    GL.GL_DEPTH_TEST: True, GL.GL_BLEND: False, GL.GL_CULL_FACE: False,
+    "glDepthFunc": (GL.GL_LESS,),
+}
+
 from . import armmesh
 
 # Brighter two-sided shader. Mirrors pyqtgraph's ES2-compatible 'shaded' shader
@@ -140,7 +159,7 @@ class Scene3D(gl.GLViewWidget):
                             [-s, -s, z_floor], [s, s, z_floor], [-s, s, z_floor]], float)
         board = gl.GLMeshItem(
             meshdata=gl.MeshData(vertexes=board_v, faces=np.arange(6).reshape(-1, 3)),
-            smooth=False, color=(0.19, 0.20, 0.25, 1.0), shader=_FLAT, glOptions="opaque")
+            smooth=False, color=(0.19, 0.20, 0.25, 1.0), shader=_FLAT, glOptions=_OPAQUE_LESS)
         self.addItem(board)
         # grid lines a hair above the board
         floor = gl.GLGridItem()
@@ -158,20 +177,6 @@ class Scene3D(gl.GLViewWidget):
                             color=(0.34, 0.36, 0.42, 1.0), shader=_BRIGHT, glOptions="opaque")
         ped.translate(0, 0, z_floor + 0.025)  # spans -0.05..0.0
         self.addItem(ped)
-
-        # Soft contact shadow on the pedestal TOP, so the arm reads as planted on it:
-        # the straight-down floor shadow lands under the pedestal near the base (hidden),
-        # leaving the top bare. Radial dark→transparent disc (unlit), a hair above z=0.
-        _n = 48
-        _a = np.linspace(0.0, 2 * np.pi, _n, endpoint=False)
-        _ring = np.column_stack([0.075 * np.cos(_a), 0.075 * np.sin(_a), np.full(_n, 0.0015)])
-        _cv = np.vstack([[0.0, 0.0, 0.0015], _ring])                       # center + rim
-        _cf = np.array([[0, 1 + i, 1 + (i + 1) % _n] for i in range(_n)])  # triangle fan
-        _cc = np.vstack([[0.0, 0.0, 0.0, 0.42]] + [[0.0, 0.0, 0.0, 0.0]] * _n)  # dark→clear
-        _cmd = gl.MeshData(vertexes=_cv, faces=_cf, vertexColors=_cc)
-        contact = gl.GLMeshItem(meshdata=_cmd, smooth=False, shader=_FLAT, glOptions=_FILL_GL)
-        contact.setDepthValue(4)          # over the pedestal top, under the arm/fan
-        self.addItem(contact)
 
         # reach fan: translucent fill + outline + front arrow (all live)
         self._fan_fill = gl.GLMeshItem(smooth=False, color=_C_FAN_FILL,
@@ -217,7 +222,8 @@ class Scene3D(gl.GLViewWidget):
 
         # parametric arm parts (+ a flattened dark copy per part = planar floor shadow)
         self.parts = []
-        self.shadows = []
+        self.shadows = []          # cast onto the floor plane
+        self.ped_shadows = []      # cast onto the pedestal top (z=0), clipped by GL_EQUAL
         for part in armmesh.build_parts():
             v = part["verts"]
             faces = np.arange(len(v)).reshape(-1, 3)
@@ -238,6 +244,14 @@ class Scene3D(gl.GLViewWidget):
             sh.setDepthValue(5)             # after opaque, under the fan fill
             self.addItem(sh)
             self.shadows.append((sh, part["parent"], part["xform"]))
+            # same silhouette dropped onto the pedestal top (z=0); GL_EQUAL keeps it
+            # on the pedestal only. Drawn last (highest depthValue) so its GL_EQUAL
+            # doesn't leak to other items this frame.
+            ph = gl.GLMeshItem(meshdata=gl.MeshData(vertexes=v, faces=faces), smooth=False,
+                               color=(0.02, 0.03, 0.05, 0.33), shader=_FLAT, glOptions=_PED_SHADOW_GL)
+            ph.setDepthValue(60)
+            self.addItem(ph)
+            self.ped_shadows.append((ph, part["parent"], part["xform"]))
 
         # target = a flat filled disc + outline on the operation plane (radius =
         # reach tolerance), like the fan — no floating sphere. Rebuilt each frame.
@@ -386,6 +400,11 @@ class Scene3D(gl.GLViewWidget):
         for sh, parent, xform in self.shadows:
             m = flat @ (Ts[parent + 1] @ xform)
             sh.setTransform(pg.Transform3D(*m.flatten()))
+        # same, flattened onto the pedestal top plane at exactly z=0 (GL_EQUAL clips it)
+        flat0 = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 0.0], [0, 0, 0, 1]], float)
+        for ph, parent, xform in self.ped_shadows:
+            m = flat0 @ (Ts[parent + 1] @ xform)
+            ph.setTransform(pg.Transform3D(*m.flatten()))
         self._place(self.tipmark, tip)
         r_t = float(np.hypot(target_xyz[0], target_xyz[1]))
         th_t = float(np.arctan2(target_xyz[1], target_xyz[0]))
