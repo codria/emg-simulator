@@ -13,12 +13,14 @@ Remove once the cause is fixed.
 
 from __future__ import annotations
 
+import faulthandler
 import sys
 import tempfile
 import time
 from pathlib import Path
 
 _LOG = Path(tempfile.gettempdir()) / "emg_sim_watchdog.log"
+_dump_file = None   # kept open for faulthandler's C-thread dumps
 
 
 def warn(msg: str) -> None:
@@ -31,6 +33,27 @@ def warn(msg: str) -> None:
     try:
         with open(_LOG, "a", encoding="utf-8") as f:
             f.write(line + "\n")
+    except Exception:
+        pass
+
+
+def heartbeat(timeout: float = 8.0) -> None:
+    """Reset a deadlock timer, called once per frame. If a frame (or the event-loop
+    processing after it) ever exceeds `timeout`, faulthandler's C-level watchdog
+    thread dumps EVERY thread's stack to the log — even during a permanent freeze
+    and even if the GIL is held, which the per-frame `warn` path can't capture
+    (it only logs a gap once the loop recovers). One dump per freeze (repeat=False;
+    a healthy frame re-arms it before it can fire)."""
+    global _dump_file
+    try:
+        if _dump_file is None:
+            _dump_file = open(_LOG, "a", encoding="utf-8", buffering=1)
+            _dump_file.write(
+                f"{time.strftime('%H:%M:%S')} [watchdog] freeze-dump armed "
+                f"(all thread stacks if a frame exceeds {timeout:.0f}s)\n"
+            )
+            _dump_file.flush()
+        faulthandler.dump_traceback_later(timeout, repeat=False, file=_dump_file)
     except Exception:
         pass
 

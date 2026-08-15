@@ -16,6 +16,7 @@ import time
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from .. import watchdog
 from . import theme
 from .scene3d import Scene3D
 from .bars import BarWidget
@@ -112,6 +113,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # render rate right down so the shared UI thread stays responsive to that
         # window instead of freezing under the 60 fps 3D repaint. The arm keeps
         # animating (slower), so tuning still shows its effect live.
+        watchdog.heartbeat()          # re-arm the deadlock dump; catches a permanent freeze
         want = 16 if self.isActiveWindow() else 55
         if self._timer.interval() != want:
             self._timer.setInterval(want)
@@ -126,8 +128,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # gap >> body → the main loop was starved (e.g. the poll thread held the GIL);
         # body large → a phase on this thread blocked — the split says which.
         if gap > 1.0 or body > 1.0:
-            from ..watchdog import warn
-            warn(f"slow loop: gap={gap:.1f}s body={body:.2f}s "
+            watchdog.warn(f"slow loop: gap={gap:.1f}s body={body:.2f}s "
                  f"(step={getattr(self, '_wd_step', 0.0):.2f} "
                  f"sfx={getattr(self, '_wd_sfx', 0.0):.2f} "
                  f"render={getattr(self, '_wd_refresh', 0.0):.2f}) "
