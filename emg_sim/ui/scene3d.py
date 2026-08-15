@@ -100,6 +100,38 @@ _FLAT = ShaderProgram("flat", [
 ])
 
 
+# Like _FLAT but clips to the pedestal disc in the fragment shader (discard where
+# world radius > the pedestal). Used for the pedestal-top shadow: its vertices are
+# baked in WORLD space each frame (identity transform) so a_position.xy IS world xy.
+# Clean LESS-depth render (no coplanar z-fight, no stencil / GL-state juggling).
+_PED_RADIUS = 0.088
+_FLAT_CLIP = ShaderProgram("flatclip", [
+    VertexShader("""
+        uniform mat4 u_mvp;
+        attribute vec4 a_position;
+        attribute vec4 a_color;
+        varying vec4 v_color;
+        varying vec2 v_xy;
+        void main() {
+            v_color = a_color;
+            v_xy = a_position.xy;
+            gl_Position = u_mvp * a_position;
+        }
+    """),
+    FragmentShader("""
+        #ifdef GL_ES
+        precision mediump float;
+        #endif
+        varying vec4 v_color;
+        varying vec2 v_xy;
+        void main() {
+            if (length(v_xy) > %f) discard;
+            gl_FragColor = v_color;
+        }
+    """ % _PED_RADIUS),
+])
+
+
 def _rgb(c, a=1.0):
     return (c[0] / 255.0, c[1] / 255.0, c[2] / 255.0, a)
 
@@ -159,20 +191,6 @@ class Scene3D(gl.GLViewWidget):
         ped.translate(0, 0, z_floor + 0.025)  # spans -0.05..0.0
         self.addItem(ped)
 
-        # Soft contact shadow on the pedestal TOP, so the arm reads as planted on it:
-        # the straight-down floor shadow lands under the pedestal near the base (hidden),
-        # leaving the top bare. Radial dark→transparent disc (unlit), a hair above z=0.
-        _n = 48
-        _a = np.linspace(0.0, 2 * np.pi, _n, endpoint=False)
-        _ring = np.column_stack([0.075 * np.cos(_a), 0.075 * np.sin(_a), np.full(_n, 0.0015)])
-        _cv = np.vstack([[0.0, 0.0, 0.0015], _ring])                       # center + rim
-        _cf = np.array([[0, 1 + i, 1 + (i + 1) % _n] for i in range(_n)])  # triangle fan
-        _cc = np.vstack([[0.0, 0.0, 0.0, 0.42]] + [[0.0, 0.0, 0.0, 0.0]] * _n)  # dark→clear
-        _cmd = gl.MeshData(vertexes=_cv, faces=_cf, vertexColors=_cc)
-        contact = gl.GLMeshItem(meshdata=_cmd, smooth=False, shader=_FLAT, glOptions=_FILL_GL)
-        contact.setDepthValue(4)          # over the pedestal top, under the arm/fan
-        self.addItem(contact)
-
         # reach fan: translucent fill + outline + front arrow (all live)
         self._fan_fill = gl.GLMeshItem(smooth=False, color=_C_FAN_FILL,
                                        glOptions=_FILL_GL, drawEdges=False)
@@ -215,9 +233,11 @@ class Scene3D(gl.GLViewWidget):
 
         self._update_fan()
 
-        # parametric arm parts (+ a flattened dark copy per part = planar floor shadow)
+        # parametric arm parts (+ a flattened dark copy per part = planar floor shadow,
+        # and a second copy cast onto the pedestal top, clipped to the pedestal disc)
         self.parts = []
         self.shadows = []
+        self.ped_shadows = []
         for part in armmesh.build_parts():
             v = part["verts"]
             faces = np.arange(len(v)).reshape(-1, 3)
@@ -238,6 +258,15 @@ class Scene3D(gl.GLViewWidget):
             sh.setDepthValue(5)             # after opaque, under the fan fill
             self.addItem(sh)
             self.shadows.append((sh, part["parent"], part["xform"]))
+            # pedestal-top copy: verts baked in world space each frame → the _FLAT_CLIP
+            # shader discards everything beyond the pedestal, so it lands only on the
+            # pedestal (clean LESS depth, no stencil). vh = homogeneous local verts.
+            ph = gl.GLMeshItem(meshdata=gl.MeshData(vertexes=v, faces=faces), smooth=False,
+                               color=(0.02, 0.03, 0.05, 0.38), shader=_FLAT_CLIP, glOptions=_FILL_GL)
+            ph.setDepthValue(6)
+            self.addItem(ph)
+            vh = np.column_stack([v, np.ones(len(v))])
+            self.ped_shadows.append((ph, part["parent"], part["xform"], vh, faces))
 
         # target = a flat filled disc + outline on the operation plane (radius =
         # reach tolerance), like the fan — no floating sphere. Rebuilt each frame.
@@ -386,6 +415,12 @@ class Scene3D(gl.GLViewWidget):
         for sh, parent, xform in self.shadows:
             m = flat @ (Ts[parent + 1] @ xform)
             sh.setTransform(pg.Transform3D(*m.flatten()))
+        # pedestal-top shadow: bake each part's verts into WORLD space, flattened onto
+        # the pedestal top (z just above 0). _FLAT_CLIP discards beyond the pedestal.
+        for ph, parent, xform, vh, faces in self.ped_shadows:
+            w = (Ts[parent + 1] @ xform @ vh.T).T[:, :3]
+            w[:, 2] = 0.0015
+            ph.setMeshData(vertexes=w, faces=faces)
         self._place(self.tipmark, tip)
         r_t = float(np.hypot(target_xyz[0], target_xyz[1]))
         th_t = float(np.arctan2(target_xyz[1], target_xyz[0]))
