@@ -100,6 +100,29 @@ def test_poll_thread_streams_into_read_and_stops():
     assert np.allclose(out[:, 0], np.array([1, 2, 3]) * _V_TO_MV)
 
 
+def test_pump_caps_buffer_dropping_oldest():
+    # under a main-loop stall the poll thread must bound the queue and keep the NEWEST
+    # samples (stay real-time), not grow an unbounded backlog of stale EMG.
+    src = _source_with([_FakeSignal(list(range(1, 11))), _FakeSignal(list(range(101, 111)))])
+    src._buf_cap = 5
+    src._pump()
+    assert len(src._buf[0]) == 5 and len(src._buf[1]) == 5
+    assert src._buf[0] == [6, 7, 8, 9, 10]           # oldest dropped, newest kept
+    assert src._buf[1] == [106, 107, 108, 109, 110]
+
+
+def test_read_sanitizes_nonfinite_samples():
+    # a BT/electrode dropout can yield NaN/Inf; one such sample must not reach the
+    # pipeline (it would poison the baseline mean and every downstream value).
+    src = _source_with([_FakeSignal([1.0, float("nan"), 3.0]),
+                        _FakeSignal([4.0, float("inf"), float("-inf")])])
+    src._pump()
+    out = src.read(1 / 60)
+    assert np.isfinite(out).all()
+    assert np.allclose(out[:, 0], np.array([1.0, 0.0, 3.0]) * _V_TO_MV)
+    assert np.allclose(out[:, 1], np.array([4.0, 0.0, 0.0]) * _V_TO_MV)
+
+
 def test_missing_dll_raises_cleanly():
     with pytest.raises(FileNotFoundError):
         discover("does_not_exist.dll")

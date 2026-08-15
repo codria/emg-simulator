@@ -38,6 +38,8 @@ from .source import InputSource
 
 _BIORADIO_NS = "GLNeuroTech.Devices.BioRadio"
 _V_TO_MV = 1000.0   # GetScaledValueArray is volts; the app works in millivolts
+_MAX_BUF_SEC = 2.0  # cap on the poll->read queue: under a main-loop stall, drop the
+#                     oldest samples past this instead of growing an unbounded backlog
 
 
 def _ensure_clr():
@@ -98,7 +100,9 @@ class BioRadioSource(InputSource):
         self._buf = None            # [left_samples, right_samples], filled by the poll
         self._poll = None           # background poll thread
         self._stop = None           # Event that tells it to exit
+        self._buf_cap = 10 ** 9        # max samples/channel; real value set in start() from sr
         self._warned_backlog = False   # watchdog: only warn once per stall
+        self._warned_nonfinite = False
 
     # -- lifecycle ---------------------------------------------------------
     def start(self) -> None:
@@ -135,6 +139,9 @@ class BioRadioSource(InputSource):
 
         # sample rate comes from the device's own configuration, not a guess
         self.sample_rate = int(self._bp.SamplesPerSecond)
+        # bound the poll->read queue now that we know the real rate: a main-loop stall
+        # (or slow inter-channel drift over a long session) can't grow it without limit.
+        self._buf_cap = max(64, int(round(_MAX_BUF_SEC * self.sample_rate)))
         self._dev.StartAcquisition()
 
         self._buf = [[], []]
@@ -169,19 +176,25 @@ class BioRadioSource(InputSource):
             from ..watchdog import warn
             warn(f"slow device pump: {dur:.1f}s for {len(left)}+{len(right)} samples "
                  f"(BT read blocked; while it holds the GIL the UI freezes with it)")
-        if left or right:
-            with self._lock:
-                self._buf[0].extend(left)
-                self._buf[1].extend(right)
-                n = min(len(self._buf[0]), len(self._buf[1]))
-            sr = getattr(self, "sample_rate", 0) or 1000
-            if n > 5 * sr and not self._warned_backlog:
-                from ..watchdog import warn
-                warn(f"read() not draining: {n} samples (~{n / sr:.1f}s) queued "
-                     f"— the Qt loop isn't calling read() (main thread stuck elsewhere)")
-                self._warned_backlog = True
-            elif n < sr and self._warned_backlog:
-                self._warned_backlog = False   # re-arm after the backlog drains
+        if not (left or right):
+            return
+        cap = self._buf_cap
+        dropped = 0
+        with self._lock:
+            self._buf[0].extend(left)
+            self._buf[1].extend(right)
+            for ch in (0, 1):
+                over = len(self._buf[ch]) - cap
+                if over > 0:
+                    del self._buf[ch][:over]     # drop oldest → bounded + stays real-time
+                    dropped = max(dropped, over)
+        if dropped and not self._warned_backlog:
+            from ..watchdog import warn
+            warn(f"input backlog capped at {cap} samples/ch (~{_MAX_BUF_SEC:.0f}s): the main "
+                 f"loop stalled — dropping oldest EMG to stay real-time (dropped {dropped})")
+            self._warned_backlog = True
+        elif not dropped and self._warned_backlog:
+            self._warned_backlog = False         # re-arm once we're back under the cap
 
     def _poll_loop(self) -> None:
         while not self._stop.is_set():
@@ -209,4 +222,10 @@ class BioRadioSource(InputSource):
         out[:, 0] = left
         out[:, 1] = right
         out *= _V_TO_MV                      # volts → millivolts
+        if not np.isfinite(out).all():       # a BT/electrode dropout can yield NaN/Inf; one
+            np.nan_to_num(out, copy=False, nan=0.0, posinf=0.0, neginf=0.0)  # bad sample would
+            if not self._warned_nonfinite:                                   # poison the baseline
+                from ..watchdog import warn
+                warn("non-finite device samples (NaN/Inf) sanitized to 0 — check electrode/BT link")
+                self._warned_nonfinite = True
         return out
