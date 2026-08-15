@@ -69,6 +69,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._telop = QtWidgets.QLabel(self.scene)
         self._telop.setAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self._telop_active = None
+        self._telop_last = 0.0        # fps-window start (wall clock); 0 = not started yet
+        self._fps_frames = 0
+        self._fps = 0.0
         self._telop.setStyleSheet(_TELOP_CSS % "#7ddc8f")
         self._telop.setText("● FOCUS")
         self._telop.adjustSize()
@@ -139,10 +142,14 @@ class MainWindow(QtWidgets.QMainWindow):
         now = time.perf_counter()
         gap = now - getattr(self, "_wd_last", now)   # time since the previous frame ran
         self._wd_last = now
-        if gap > 1e-4:                                # smoothed actual fps for the telop
-            self._fps_ema = 0.85 * getattr(self, "_fps_ema", 1.0 / gap) + 0.15 / gap
-        self._telop_frame = (getattr(self, "_telop_frame", 0) + 1) % 3
-        if self._telop_frame == 0:
+        # measured fps as the average over a ~0.4 s window (stable), and only refresh the
+        # telop text when the window closes (~2.5x/s) so the number is readable, not a blur
+        self._fps_frames += 1
+        if self._telop_last <= 0.0:
+            self._telop_last = now
+        elif now - self._telop_last >= 0.4:
+            self._fps = self._fps_frames / (now - self._telop_last)
+            self._fps_frames, self._telop_last = 0, now
             self._update_telop(active, want)
         dt = min(self._elapsed.restart() / 1000.0, 0.1)
         t0 = time.perf_counter()
@@ -171,7 +178,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if tl is None or not tl.isVisible():
             return
         tgt = round(1000 / want_ms)
-        act = round(getattr(self, "_fps_ema", 0.0))
+        act = round(self._fps)
         if active:
             tl.setText(f"● FOCUS   目標 {tgt} / 実測 {act} fps")
         else:
