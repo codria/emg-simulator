@@ -18,10 +18,10 @@ import numpy as np
 
 from .source import InputSource
 
-# EMG-realistic amplitudes (volts) so the dummy shares the real device's domain:
-# a real BioRadio streams ~mV, so keep the whole normalization/scale on one scale.
-_BASE_AMP = 0.002   # rest noise floor (per-sample std ~2 mV)
-_BURST_AMP = 0.06   # full-drive burst std (~60 mV, a strong contraction)
+# EMG-realistic amplitudes in MILLIVOLTS — the app's amplitude unit (the real
+# BioRadio read() converts its volts to mV), so dummy and device share one scale.
+_BASE_AMP = 0.05   # rest noise floor (per-sample std ~0.05 mV)
+_BURST_AMP = 1.5   # full-drive burst std (~1.5 mV, a strong contraction)
 
 
 class DummySource(InputSource):

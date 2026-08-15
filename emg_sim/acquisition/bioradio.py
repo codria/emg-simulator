@@ -35,6 +35,7 @@ import numpy as np
 from .source import InputSource
 
 _BIORADIO_NS = "GLNeuroTech.Devices.BioRadio"
+_V_TO_MV = 1000.0   # GetScaledValueArray is volts; the app works in millivolts
 
 
 def _ensure_clr():
@@ -149,4 +150,5 @@ class BioRadioSource(InputSource):
             return np.zeros((0, 2))
         out = np.empty((k, 2))
         out[:, 0], out[:, 1] = left[:k], right[:k]
+        out *= _V_TO_MV            # volts → millivolts (the app's amplitude unit)
         return out

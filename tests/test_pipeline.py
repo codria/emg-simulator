@@ -44,8 +44,8 @@ def test_dummy_rms_tracks_drive():
     src.set_drive(1.0, 1.0)
     for _ in range(60):
         amp1 = dsp.process(src.read(1 / 60))
-    assert amp0[0] < 0.02          # rest ≈ noise floor (~2 mV)
-    assert amp1[0] > 0.025         # full drive ≈ 60 mV, well above rest
+    assert amp0[0] < 0.5           # rest ≈ noise floor (~0.15 mV)
+    assert amp1[0] > 0.7           # full drive ≈ 1.5 mV, well above rest
     assert amp1[1] > amp0[1]
 
 

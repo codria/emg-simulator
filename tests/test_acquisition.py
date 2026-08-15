@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from emg_sim.acquisition import BioRadioSource, discover, make_source
+from emg_sim.acquisition.bioradio import _V_TO_MV   # read() converts volts → mV
 from emg_sim.config import Config
 from emg_sim.engine import Engine
 
@@ -34,15 +35,15 @@ def test_read_assembles_two_channels():
     src = _source_with([_FakeSignal([1.0, 2.0, 3.0]), _FakeSignal([4.0, 5.0, 6.0])])
     out = src.read(1 / 60)
     assert out.shape == (3, 2)
-    assert np.allclose(out[:, 0], [1, 2, 3])
-    assert np.allclose(out[:, 1], [4, 5, 6])
+    assert np.allclose(out[:, 0], np.array([1, 2, 3]) * _V_TO_MV)
+    assert np.allclose(out[:, 1], np.array([4, 5, 6]) * _V_TO_MV)
 
 
 def test_read_aligns_mismatched_lengths():
     src = _source_with([_FakeSignal([1.0, 2.0, 3.0]), _FakeSignal([4.0, 5.0])])
     out = src.read(1 / 60)
     assert out.shape == (2, 2)           # min of the two channel lengths
-    assert np.allclose(out[:, 1], [4, 5])
+    assert np.allclose(out[:, 1], np.array([4, 5]) * _V_TO_MV)
 
 
 def test_read_empty_returns_0x2():
@@ -60,8 +61,8 @@ def test_custom_channel_mapping_swaps_columns():
     src = BioRadioSource("unused.dll", left=1, right=0)
     src._bp = [_FakeSignal([10.0, 11.0]), _FakeSignal([20.0, 21.0])]
     out = src.read(1 / 60)
-    assert np.allclose(out[:, 0], [20, 21])   # left arm reads channel index 1
-    assert np.allclose(out[:, 1], [10, 11])   # right arm reads channel index 0
+    assert np.allclose(out[:, 0], np.array([20, 21]) * _V_TO_MV)   # left arm reads channel index 1
+    assert np.allclose(out[:, 1], np.array([10, 11]) * _V_TO_MV)   # right arm reads channel index 0
 
 
 def test_missing_dll_raises_cleanly():

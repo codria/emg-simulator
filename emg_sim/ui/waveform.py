@@ -40,12 +40,12 @@ class WaveformPlot(QtWidgets.QWidget):
         self.p.setClipToView(True)
         self.p.setDownsampling(mode="peak", auto=True)  # stays fast at long windows
 
-        axl = self.p.getAxis("left")         # amplitude (a.u. for dummy, volts for a device)
+        axl = self.p.getAxis("left")         # amplitude in millivolts (dummy + device)
         axl.setStyle(tickTextOffset=3)       # ticks auto-generate to fit the auto-scaled range
         self._yhi = 0.0                      # eased y-range high-water (autoscale)
         axl.setPen(pg.mkPen((120, 125, 140)))
         axl.setTextPen(pg.mkPen((150, 155, 170)))
-        axl.setLabel("amplitude (a.u.)")
+        axl.setLabel("amplitude (mV)")
 
         step = 2 if disp > 6 else 1
         axb = self.p.getAxis("bottom")       # time (s), 0 = now

@@ -35,8 +35,8 @@ class NormalizeConfig:
     soft_sat: bool = True          # tanh soft saturation
     sat_gain: float = 1.2          # activation = tanh(sat_gain * x / scale)
     adapt_rate: float = 0.05       # scale adaptation speed toward the peak (0 = off)
-    fallback_scale: float = 0.02   # scale floor/initial (volts); ~20 mV suits real EMG
-                                   # and the mV-domain dummy. Below the flex peak so the
+    fallback_scale: float = 0.5    # scale floor/initial in MILLIVOLTS (~0.5 mV, half a
+                                   # typical ~1 mV EMG). Below the flex peak so the
                                    # leaky-peak can adapt down to it; lower = more sensitive.
     peak_halflife_sec: float = 120.0 # leaky-peak decay: stale highs fade (≈ recent-max
                                      # window) so a one-off artifact / max clench doesn't
