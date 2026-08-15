@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6 import QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 from ..acquisition import BioRadioSource, DummySource, discover, make_source
 
@@ -89,6 +89,9 @@ class ConnectionDialog(QtWidgets.QDialog):
         # -- status + buttons ----------------------------------------------
         self.status = QtWidgets.QLabel()
         self.status.setWordWrap(True)
+        # reserve ~2 lines (top-aligned) so a longer wrapped message doesn't grow the dialog
+        self.status.setMinimumHeight(40)
+        self.status.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop | QtCore.Qt.AlignmentFlag.AlignLeft)
         lay.addWidget(self.status)
 
         btns = QtWidgets.QHBoxLayout()
@@ -111,7 +114,10 @@ class ConnectionDialog(QtWidgets.QDialog):
         self.rb_dummy.toggled.connect(lambda: self.box.setEnabled(self.rb_bio.isChecked()))
         self.box.setEnabled(self.rb_bio.isChecked())
         self._set_status(self._state_text(), _OK)
-        self.resize(480, 300)
+        # size to the content (>= its minimum) instead of a fixed 300 that Qt can't honor
+        # (that mismatch is the "QWindowsWindow::setGeometry: Unable to set geometry" warning)
+        self.setMinimumWidth(480)
+        self.adjustSize()
 
     # -- helpers -----------------------------------------------------------
     def _state_text(self) -> str:
