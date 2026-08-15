@@ -3,7 +3,7 @@ value. Shows the band-pass-filtered EMG (AC-coupled, so the ground line doesn't
 drift with the electrode DC offset) and the smoothed envelope ``amp``, plus the three
 references the normalization uses — ``baseline`` (subtracted), ``scale`` (the
 divisor, drawn at ``baseline+scale`` = the "full effort" level) and the leaky
-``peak`` the scale follows. Everything is on one amplitude axis (a.u.); the 0–1
+``peak`` the scale follows. Everything is on one amplitude axis (µV); the 0–1
 control value ``tanh(sat_gain·(amp−baseline)/scale)`` is read off the bars, not
 here. X axis is time (0 = now, older to the left). One instance per arm.
 """
@@ -15,6 +15,8 @@ import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 
 from . import theme
+
+_MV_TO_UV = 1000.0   # plot in microvolts (EMG's natural unit → clean integer ticks)
 
 
 def _dim(c):
@@ -40,12 +42,13 @@ class WaveformPlot(QtWidgets.QWidget):
         self.p.setClipToView(True)
         self.p.setDownsampling(mode="peak", auto=True)  # stays fast at long windows
 
-        axl = self.p.getAxis("left")         # amplitude in millivolts (dummy + device)
+        axl = self.p.getAxis("left")         # amplitude in microvolts (dummy + device)
         axl.setStyle(tickTextOffset=3)       # ticks auto-generate to fit the auto-scaled range
+        axl.enableAutoSIPrefix(False)        # show the raw tick numbers, no "(x0.001)" factor
         self._yhi = 0.0                      # eased y-range high-water (autoscale)
         axl.setPen(pg.mkPen((120, 125, 140)))
         axl.setTextPen(pg.mkPen((150, 155, 170)))
-        axl.setLabel("amplitude (mV)")
+        axl.setLabel("amplitude (µV)")
 
         step = 2 if disp > 6 else 1
         axb = self.p.getAxis("bottom")       # time (s), 0 = now
@@ -93,16 +96,19 @@ class WaveformPlot(QtWidgets.QWidget):
 
     def update_state(self, raw, amp, baseline=0.0, scale=0.0, peak=0.0) -> None:
         self.sr = self.cfg.signal.sample_rate        # may have been adopted from a device
+        s = _MV_TO_UV                                 # display everything in microvolts
+        raw = np.asarray(raw, float) * s
+        amp = np.asarray(amp, float) * s
+        b, sc, pk = float(baseline) * s, float(scale) * s, float(peak) * s
         n = len(raw)
         t = (np.arange(n) - (n - 1)) / self.sr   # last sample at t=0, older negative
         self.raw.setData(t, raw)
         self.amp.setData(t, amp)
         self.rms_region.setRegion([-self.cfg.signal.rms_window_ms / 1000.0, 0.0])
-        b = float(baseline)
         self.base_line.setPos(b)                     # subtracted floor
-        self.scale_line.setPos(b + float(scale))     # amp here → x/scale = 1 (満力)
-        self.peak_line.setPos(b + float(peak))       # leaky high-water mark
-        self._autoscale_y(raw, amp, b, float(peak))
+        self.scale_line.setPos(b + sc)               # amp here → x/scale = 1 (満力)
+        self.peak_line.setPos(b + pk)                # leaky high-water mark
+        self._autoscale_y(raw, amp, b, pk)
 
     def _autoscale_y(self, raw, amp, b, peak) -> None:
         """Fit the y-axis to the actual signal. A device streams volts (~±0.05) while
@@ -112,7 +118,7 @@ class WaveformPlot(QtWidgets.QWidget):
         (`scale` is intentionally excluded: a mis-tuned fallback would push the whole
         signal flat — lower `fallback_scale` in Settings and its line drops into view.)"""
         pk = float(np.percentile(np.abs(raw), 98)) if len(raw) else 0.0
-        top = max(pk, float(np.max(amp)) if len(amp) else 0.0, abs(b) + float(peak), 1e-3)
+        top = max(pk, float(np.max(amp)) if len(amp) else 0.0, abs(b) + float(peak), 1.0)
         self._yhi = max(top, self._yhi * 0.9)        # rise now, decay slowly (~1 s)
         hi = self._yhi * 1.25
         self.p.setYRange(-hi, hi, padding=0)
