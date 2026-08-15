@@ -257,7 +257,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Waveforms scroll over a ~10 s window, so ~20 fps looks identical — but their
         # 10k–20k-point redraw + percentile autoscale is the heaviest per-frame 2D work.
         # Update them every 3rd frame so the arm (and a dragged slider) stay smooth.
-        if self.wave_left is not None:
+        if self.wave_left is not None and self.wave_left.isVisible():   # W can hide them live
             self._wave_frame = (getattr(self, "_wave_frame", 0) + 1) % 3
             if self._wave_frame == 0:
                 self.wave_left.update_state(eng.waveform(0), eng.amp_history(0),
@@ -318,6 +318,7 @@ class MainWindow(QtWidgets.QMainWindow):
         QtCore.Qt.Key.Key_C: "C",
         QtCore.Qt.Key.Key_P: "P",
         QtCore.Qt.Key.Key_O: "O",
+        QtCore.Qt.Key.Key_W: "W",
     }
 
     def eventFilter(self, obj, event) -> bool:
@@ -355,6 +356,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self.engine.reset_pose()      # re-home the arm (recover a flipped pose)
         elif k == "O":
             self._telop.setVisible(not self._telop.isVisible())   # toggle the focus/fps telop
+        elif k == "W":
+            if self.wave_left is not None:        # toggle the (heavy) 2D waveforms live
+                for w in (self.wave_left, self.wave_right):
+                    w.setVisible(not w.isVisible())
 
     def _start_baseline(self) -> None:
         self.engine.start_baseline()
