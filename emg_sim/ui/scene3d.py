@@ -159,6 +159,20 @@ class Scene3D(gl.GLViewWidget):
         ped.translate(0, 0, z_floor + 0.025)  # spans -0.05..0.0
         self.addItem(ped)
 
+        # Soft contact shadow on the pedestal TOP, so the arm reads as planted on it:
+        # the straight-down floor shadow lands under the pedestal near the base (hidden),
+        # leaving the top bare. Radial dark→transparent disc (unlit), a hair above z=0.
+        _n = 48
+        _a = np.linspace(0.0, 2 * np.pi, _n, endpoint=False)
+        _ring = np.column_stack([0.075 * np.cos(_a), 0.075 * np.sin(_a), np.full(_n, 0.0015)])
+        _cv = np.vstack([[0.0, 0.0, 0.0015], _ring])                       # center + rim
+        _cf = np.array([[0, 1 + i, 1 + (i + 1) % _n] for i in range(_n)])  # triangle fan
+        _cc = np.vstack([[0.0, 0.0, 0.0, 0.42]] + [[0.0, 0.0, 0.0, 0.0]] * _n)  # dark→clear
+        _cmd = gl.MeshData(vertexes=_cv, faces=_cf, vertexColors=_cc)
+        contact = gl.GLMeshItem(meshdata=_cmd, smooth=False, shader=_FLAT, glOptions=_FILL_GL)
+        contact.setDepthValue(4)          # over the pedestal top, under the arm/fan
+        self.addItem(contact)
+
         # reach fan: translucent fill + outline + front arrow (all live)
         self._fan_fill = gl.GLMeshItem(smooth=False, color=_C_FAN_FILL,
                                        glOptions=_FILL_GL, drawEdges=False)
