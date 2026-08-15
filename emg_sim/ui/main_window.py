@@ -196,10 +196,15 @@ class MainWindow(QtWidgets.QMainWindow):
         # the in-zone "charge"; hit_flash pops the completion flash at the old target.
         self.scene.update_state(eng.control.arm, eng.game.target_xyz, eng.tip,
                                 eng.game.hold_frac, hit_flash, dt)
-        self.wave_left.update_state(eng.waveform(0), eng.amp_history(0),
-                                    eng.norm.baseline[0], eng.norm.scale[0], eng.norm.peak[0])
-        self.wave_right.update_state(eng.waveform(1), eng.amp_history(1),
-                                     eng.norm.baseline[1], eng.norm.scale[1], eng.norm.peak[1])
+        # Waveforms scroll over a ~10 s window, so ~20 fps looks identical — but their
+        # 10k–20k-point redraw + percentile autoscale is the heaviest per-frame 2D work.
+        # Update them every 3rd frame so the arm (and a dragged slider) stay smooth.
+        self._wave_frame = (getattr(self, "_wave_frame", 0) + 1) % 3
+        if self._wave_frame == 0:
+            self.wave_left.update_state(eng.waveform(0), eng.amp_history(0),
+                                        eng.norm.baseline[0], eng.norm.scale[0], eng.norm.peak[0])
+            self.wave_right.update_state(eng.waveform(1), eng.amp_history(1),
+                                         eng.norm.baseline[1], eng.norm.scale[1], eng.norm.peak[1])
 
         # Bars show the REACH FRACTION a_eff = activation / full_ref (0 = r_min/θ_min,
         # 1 = r_max/θ_max) — i.e. what the arm actually drives to, so a full drive
