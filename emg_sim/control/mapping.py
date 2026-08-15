@@ -92,8 +92,15 @@ class PolarController:
     def reset_pose(self) -> None:
         """Re-home the arm (joints zeroed) and re-settle to the current target, to
         recover from an IK solution that flipped (e.g. an elbow-down pose). Solving
-        from home lets the elbow-up secondary task pick the natural configuration."""
+        from home lets the elbow-up secondary task pick the natural configuration.
+        Aim the base yaw (J1) at the target azimuth while doing so: without it a cold
+        solve at large θ resolves the base the wrong way and dips the elbow below the
+        floor (~0.13 m under, near θ=180°)."""
         self.arm.q = np.zeros(len(self.arm.joints))
+        o = self._ik_opts()
+        o.j1_preferred = True
+        o.j1_preferred_gain = 0.30
+        o.j1_target = float(np.arctan2(self.target[1], self.target[0]))
         for _ in range(60):
-            self.arm.solve_ik(self.target, self._ik_opts())
+            self.arm.solve_ik(self.target, o)
         self._last_q = self.arm.q.copy()
