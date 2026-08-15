@@ -94,6 +94,7 @@ class Engine:
                 old.stop()
             except Exception:
                 pass
+        self._adopt_source_rate()      # match the DSP to the new source's real rate
 
     # -- calibration flow (係員キー押下) -----------------------------------
     def start_baseline(self) -> None:
@@ -110,6 +111,23 @@ class Engine:
     def rebuild_dsp(self) -> None:
         """Recreate the RMS pipeline after config changes (window/EMA)."""
         self.dsp = RMSPipeline(self.cfg)
+
+    def start_source(self) -> None:
+        """Start the current source, then adopt its actual sample rate."""
+        self.source.start()
+        self._adopt_source_rate()
+
+    def _adopt_source_rate(self) -> None:
+        """A real device may stream at a rate other than the config default (e.g. a
+        BioRadio at 2000 Hz vs the 1000 Hz default). Adopt it so the DSP window,
+        band-pass/notch Nyquist and the waveform buffer match the real stream
+        instead of a stale assumption. No-op for the dummy source (already in sync)."""
+        sr = getattr(self.source, "sample_rate", None)
+        if sr and int(sr) != int(self.cfg.signal.sample_rate):
+            self.cfg.signal.sample_rate = int(sr)
+            self.rebuild_dsp()
+            disp_n = max(1, int(round(self.cfg.signal.display_sec * self.cfg.signal.sample_rate)))
+            self._amp_hist = [deque([0.0] * disp_n, maxlen=disp_n) for _ in range(2)]
 
     # -- views for the GUI -------------------------------------------------
     def waveform(self, ch: int) -> np.ndarray:

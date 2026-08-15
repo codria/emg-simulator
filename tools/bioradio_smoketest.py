@@ -8,7 +8,7 @@ confirm the acquisition path end-to-end before wiring it into the app:
 It discovers devices, connects, streams for a few seconds and prints per-channel
 stats (configured sample rate, samples actually received, effective rate, value
 range). Prerequisite: the two EMG (BioPotential) channels must be programmed on
-the device in BioCapture first — otherwise there are no channels to read.
+the device in BioCapture first - otherwise there are no channels to read.
 
 With no device attached it just prints "no devices" and exits 0, which still
 exercises the discover path (and the DLL load).
@@ -42,7 +42,7 @@ def main(argv=None) -> int:
     devices = discover(a.dll)
     print(f"  found {len(devices)}: " + (", ".join(f"{n} ({m:012X})" for n, m in devices) or "-"))
     if not devices and a.mac is None:
-        print("no devices — power on + Bluetooth-pair the BioRadio (2.1+ adapter), then retry.")
+        print("no devices - power on + Bluetooth-pair the BioRadio (2.1+ adapter), then retry.")
         return 0
 
     src = BioRadioSource(a.dll,
@@ -70,9 +70,9 @@ def main(argv=None) -> int:
     print(f"  received {n} samples/ch in {dur:.1f}s  (~{n / dur:.0f} Hz effective)")
     if n:
         print(f"  L range [{lo[0]:+.4g}, {hi[0]:+.4g}] V     R range [{lo[1]:+.4g}, {hi[1]:+.4g}] V")
-        print("OK — acquisition works. Wire it in with:  python -m emg_sim.app --bioradio <dll> [--mac ...]")
+        print("OK - acquisition works. Wire it in with:  python -m emg_sim.app --bioradio <dll> [--mac ...]")
     else:
-        print("connected but received 0 samples — are the EMG channels programmed in BioCapture?")
+        print("connected but received 0 samples - are the EMG channels programmed in BioCapture?")
     return 0
 
 

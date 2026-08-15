@@ -66,7 +66,7 @@ def main(argv=None) -> int:
         eng.set_attract(True)
 
     try:
-        eng.source.start()               # no-op for dummy; connects a real BioRadio
+        eng.start_source()               # connect + adopt the device's real rate
     except Exception as e:
         print(f"acquisition start failed: {e}", file=sys.stderr)
         return 2
