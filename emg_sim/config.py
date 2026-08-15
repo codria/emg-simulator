@@ -128,6 +128,18 @@ class Config:
     def load(cls, path) -> "Config":
         return _build(cls, json.loads(Path(path).read_text(encoding="utf-8")))
 
+    @classmethod
+    def load_or_default(cls, path) -> "Config":
+        """Load a Config JSON, or fall back to defaults if it's missing/corrupt, so a
+        bad config file can never stop the app from starting (important for the live
+        exhibit). Prints a note to stderr on fallback."""
+        try:
+            return cls.load(path)
+        except Exception as e:
+            import sys
+            print(f"config load failed ({path}): {e}; using defaults", file=sys.stderr)
+            return cls()
+
 
 def _build(cls, d: dict):
     """Reconstruct a (possibly nested) dataclass from a plain dict, ignoring

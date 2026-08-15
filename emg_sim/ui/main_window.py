@@ -122,7 +122,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self._wd_last = now
         dt = min(self._elapsed.restart() / 1000.0, 0.1)
         t0 = time.perf_counter()
-        self.tick(dt)
+        try:
+            self.tick(dt)
+        except Exception as exc:
+            # A live exhibit must never die on one bad frame: log (rate-limited) and
+            # keep looping. The next frame re-renders from the engine's current state.
+            self._on_tick_error(exc)
         body = time.perf_counter() - t0
         # watchdog: only fires on a pathological stall (>1 s, never in a healthy run).
         # gap >> body → the main loop was starved (e.g. the poll thread held the GIL);
@@ -141,6 +146,17 @@ class MainWindow(QtWidgets.QMainWindow):
             return min(len(b[0]), len(b[1])) if b else -1
         except Exception:
             return -1
+
+    def _on_tick_error(self, exc: Exception) -> None:
+        """A frame raised. Log the first occurrence with a traceback, then rate-limit
+        (once per ~5 s) so a persistent error can't flood the log — the loop lives on."""
+        import traceback
+        n = getattr(self, "_tick_err_n", 0) + 1
+        self._tick_err_n = n
+        now = time.perf_counter()
+        if n == 1 or now - getattr(self, "_tick_err_last", -1e9) > 5.0:
+            self._tick_err_last = now
+            watchdog.warn(f"tick error #{n} (loop continues): {exc!r}\n{traceback.format_exc()}")
 
     def tick(self, dt: float) -> None:
         if not self.engine.attract:

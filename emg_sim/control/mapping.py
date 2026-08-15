@@ -29,6 +29,7 @@ class PolarController:
         # settle the arm into the operation plane so it doesn't start pointing up
         for _ in range(60):
             self.arm.solve_ik(self.target, self._ik_opts())
+        self._last_q = self.arm.q.copy()   # last known-good pose (see update())
 
     def _ik_opts(self) -> IKOptions:
         # adaptive elbow: fold when reaching near, straighten when reaching far,
@@ -77,7 +78,15 @@ class PolarController:
         """Advance one control step; returns (q, tip, target)."""
         self.r, self.theta = self.target_from_activation(a_left, a_right)
         self.target = polar_to_xyz(self.cfg, self.r, self.theta)
-        self.arm.solve_ik(self.target, self._ik_opts())  # warm-started → smooth
+        # Robustness: never drive the IK with a non-finite target, and never let a
+        # non-finite solution reach the renderer — hold the last good pose instead, so
+        # any numerical blow-up freezes the arm briefly rather than making it vanish.
+        if np.all(np.isfinite(self.target)):
+            self.arm.solve_ik(self.target, self._ik_opts())  # warm-started → smooth
+        if np.all(np.isfinite(self.arm.q)):
+            self._last_q = self.arm.q.copy()
+        else:
+            self.arm.q = self._last_q.copy()
         return self.arm.q.copy(), self.arm.tip_position(), self.target.copy()
 
     def reset_pose(self) -> None:
@@ -87,3 +96,4 @@ class PolarController:
         self.arm.q = np.zeros(len(self.arm.joints))
         for _ in range(60):
             self.arm.solve_ik(self.target, self._ik_opts())
+        self._last_q = self.arm.q.copy()

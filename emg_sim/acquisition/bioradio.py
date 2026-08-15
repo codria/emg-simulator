@@ -200,7 +200,11 @@ class BioRadioSource(InputSource):
         while not self._stop.is_set():
             try:
                 self._pump()
-            except Exception:
+            except Exception as e:
+                if not self._stop.is_set():  # unexpected (not a normal stop) → note it
+                    from ..watchdog import warn
+                    warn(f"BioRadio poll thread stopped: {e!r} — stream ended (read() now "
+                         f"returns empty; reconnect from the C dialog)")
                 break                       # device stopped / gone
             self._stop.wait(0.005)          # ~200 Hz poll; ample for a 1–2 kHz stream
 

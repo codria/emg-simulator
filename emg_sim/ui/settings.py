@@ -218,7 +218,11 @@ class SettingsDialog(QtWidgets.QDialog):
         if not _USER_CFG.exists():
             self.status.setText("保存ファイルがありません")
             return
-        loaded = Config.load(_USER_CFG)
+        try:
+            loaded = Config.load(_USER_CFG)
+        except Exception as e:                     # corrupt JSON must not crash the app
+            self.status.setText(f"読込失敗（ファイル破損?）: {e}")
+            return
         # copy fields in place so live references stay valid
         for sec in ("signal", "normalize", "control", "game", "ui"):
             src, dst = getattr(loaded, sec), getattr(self.cfg, sec)

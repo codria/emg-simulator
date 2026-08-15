@@ -31,7 +31,7 @@ def main(argv=None) -> int:
                     help="with --bioradio: scan, print devices, exit")
     args = ap.parse_args(argv)
 
-    cfg = Config.load(args.config) if args.config else Config()
+    cfg = Config.load_or_default(args.config) if args.config else Config()
 
     # CLI selects the launch source; the in-app Connection dialog (C key) can
     # switch at runtime. Seed cfg.acquisition so the dialog reflects the CLI.
@@ -68,8 +68,16 @@ def main(argv=None) -> int:
     try:
         eng.start_source()               # connect + adopt the device's real rate
     except Exception as e:
-        print(f"acquisition start failed: {e}", file=sys.stderr)
-        return 2
+        # Don't let a device that won't start kill the exhibit: fall back to dummy
+        # input so the app still runs (reconnect later from the C dialog).
+        print(f"acquisition start failed ({e}); falling back to dummy input — "
+              f"reconnect the device from the Connection (C) dialog.", file=sys.stderr)
+        from .acquisition import DummySource
+        try:
+            eng.set_source(DummySource(cfg, mode="auto" if eng.attract else "manual"))
+        except Exception as e2:
+            print(f"dummy fallback also failed: {e2}", file=sys.stderr)
+            return 2
     app.aboutToQuit.connect(eng.source.stop)
 
     win = MainWindow(eng, cfg)
