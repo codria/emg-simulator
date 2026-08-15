@@ -29,6 +29,7 @@ without pythonnet (Windows-only dep) — tests and non-device machines are safe.
 from __future__ import annotations
 
 import os
+import threading
 
 import numpy as np
 
@@ -90,6 +91,12 @@ class BioRadioSource(InputSource):
         self._mgr = None
         self._dev = None
         self._bp = None  # BioPotentialSignals group
+        # the device is polled on a background thread (so the Qt loop never blocks on
+        # a pythonnet/BT call); read() just drains this lock-protected queue.
+        self._lock = threading.Lock()
+        self._buf = None            # [left_samples, right_samples], filled by the poll
+        self._poll = None           # background poll thread
+        self._stop = None           # Event that tells it to exit
 
     # -- lifecycle ---------------------------------------------------------
     def start(self) -> None:
@@ -128,27 +135,61 @@ class BioRadioSource(InputSource):
         self.sample_rate = int(self._bp.SamplesPerSecond)
         self._dev.StartAcquisition()
 
+        self._buf = [[], []]
+        self._stop = threading.Event()
+        self._poll = threading.Thread(target=self._poll_loop, name="bioradio-poll", daemon=True)
+        self._poll.start()
+
     def stop(self) -> None:
+        if self._stop is not None:
+            self._stop.set()                 # stop the poll thread before touching .NET
+        if self._poll is not None:
+            self._poll.join(timeout=1.0)
+        self._poll = self._stop = None
         try:
             if self._dev is not None:
                 self._dev.StopAcquisition()
                 self._dev.Disconnect()
         finally:
             self._mgr = self._dev = self._bp = None
+            with self._lock:
+                self._buf = None
 
     # -- read --------------------------------------------------------------
+    def _pump(self) -> None:
+        """One poll: move whatever the device has buffered into our queue. Runs on the
+        background thread (and is called directly by the read() unit tests)."""
+        left = list(self._bp[self._left].GetScaledValueArray())
+        right = list(self._bp[self._right].GetScaledValueArray())
+        if left or right:
+            with self._lock:
+                self._buf[0].extend(left)
+                self._buf[1].extend(right)
+
+    def _poll_loop(self) -> None:
+        while not self._stop.is_set():
+            try:
+                self._pump()
+            except Exception:
+                break                       # device stopped / gone
+            self._stop.wait(0.005)          # ~200 Hz poll; ample for a 1–2 kHz stream
+
     def read(self, dt: float) -> np.ndarray:
-        """Drain the samples buffered since the last call → `(k, 2)` (volts)."""
-        if self._bp is None:
+        """Return the samples queued since the last call → `(k, 2)` in millivolts. No
+        device / pythonnet call here, so the Qt render loop never stalls on the poll.
+        Same signal group → the two channels track; a mismatched tail is left buffered."""
+        if self._buf is None:
             return np.zeros((0, 2))
-        left = np.asarray(list(self._bp[self._left].GetScaledValueArray()), dtype=float)
-        right = np.asarray(list(self._bp[self._right].GetScaledValueArray()), dtype=float)
-        # same signal group → chunks are normally equal length; align defensively
-        # (a mismatched tail is dropped — the SDK already drained it either way).
-        k = min(left.size, right.size)
-        if k == 0:
-            return np.zeros((0, 2))
+        with self._lock:
+            k = min(len(self._buf[0]), len(self._buf[1]))
+            if k == 0:
+                return np.zeros((0, 2))
+            left = self._buf[0][:k]
+            right = self._buf[1][:k]
+            del self._buf[0][:k]
+            del self._buf[1][:k]
         out = np.empty((k, 2))
-        out[:, 0], out[:, 1] = left[:k], right[:k]
-        out *= _V_TO_MV            # volts → millivolts (the app's amplitude unit)
+        out[:, 0] = left
+        out[:, 1] = right
+        out *= _V_TO_MV                      # volts → millivolts
         return out
