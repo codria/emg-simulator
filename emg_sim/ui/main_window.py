@@ -258,7 +258,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # 10k–20k-point redraw + percentile autoscale is the heaviest per-frame 2D work.
         # Update them every 3rd frame so the arm (and a dragged slider) stay smooth.
         if self.wave_left is not None and self.wave_left.isVisible():   # W can hide them live
-            self._wave_frame = (getattr(self, "_wave_frame", 0) + 1) % 3
+            div = max(1, self.cfg.ui.wave_decim)     # redraw every Nth frame (--light raises it)
+            self._wave_frame = (getattr(self, "_wave_frame", 0) + 1) % div
             if self._wave_frame == 0:
                 self.wave_left.update_state(eng.waveform(0), eng.amp_history(0),
                                             eng.norm.baseline[0], eng.norm.scale[0], eng.norm.peak[0])

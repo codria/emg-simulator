@@ -56,9 +56,9 @@ def main(argv=None) -> int:
         if args.device:
             cfg.acquisition.device = args.device
 
-    if args.light:                          # weak-machine overrides (biggest per-frame costs)
-        cfg.ui.show_waveform = False
-        cfg.ui.msaa = 0
+    if args.light:                          # weak-machine mode: lighten, don't strip
+        cfg.ui.msaa = 0                     # no MSAA (helps integrated GPUs)
+        cfg.ui.wave_decim = 6              # waveforms ~10fps instead of ~20 (kept, just lighter)
 
     if args.list_devices:
         if not cfg.acquisition.dll_path:
