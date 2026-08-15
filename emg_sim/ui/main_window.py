@@ -27,6 +27,11 @@ _RAMP_PER_SEC = 3.0
 _KEY_LEFT = "F"
 _KEY_RIGHT = "J"
 
+# focus/fps telop overlaid on the 3D view (O key toggles). %s = text colour.
+_TELOP_CSS = ("QLabel { color: %s; background: rgba(16,16,24,175); padding: 2px 7px;"
+              " border-radius: 3px; font-family: Consolas, 'Courier New', monospace;"
+              " font-size: 8pt; }")
+
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, engine, cfg):
@@ -57,6 +62,19 @@ class MainWindow(QtWidgets.QMainWindow):
             s.valueChanged.connect(lambda _v: self.engine.notify_user_input())
 
         self._build_layout()
+
+        # Focus/fps telop over the 3D view's top-left: tells apart "choppy because the
+        # window lost focus (render throttled to ~18fps on purpose)" from real
+        # processing lag (FOCUS but low actual fps). Toggle with O; hide for the show.
+        self._telop = QtWidgets.QLabel(self.scene)
+        self._telop.setAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self._telop_active = None
+        self._telop.setStyleSheet(_TELOP_CSS % "#7ddc8f")
+        self._telop.setText("● FOCUS")
+        self._telop.adjustSize()
+        self._telop.move(8, 8)
+        self._telop.show()
+        self._telop.raise_()          # keep it above the GL content
 
         self.status = QtWidgets.QLabel()
         self.statusBar().addWidget(self.status)
@@ -114,12 +132,18 @@ class MainWindow(QtWidgets.QMainWindow):
         # window instead of freezing under the 60 fps 3D repaint. The arm keeps
         # animating (slower), so tuning still shows its effect live.
         watchdog.heartbeat()          # re-arm the deadlock dump; catches a permanent freeze
-        want = 16 if self.isActiveWindow() else 55
+        active = self.isActiveWindow()
+        want = 16 if active else 55
         if self._timer.interval() != want:
             self._timer.setInterval(want)
         now = time.perf_counter()
         gap = now - getattr(self, "_wd_last", now)   # time since the previous frame ran
         self._wd_last = now
+        if gap > 1e-4:                                # smoothed actual fps for the telop
+            self._fps_ema = 0.85 * getattr(self, "_fps_ema", 1.0 / gap) + 0.15 / gap
+        self._telop_frame = (getattr(self, "_telop_frame", 0) + 1) % 3
+        if self._telop_frame == 0:
+            self._update_telop(active, want)
         dt = min(self._elapsed.restart() / 1000.0, 0.1)
         t0 = time.perf_counter()
         try:
@@ -138,6 +162,24 @@ class MainWindow(QtWidgets.QMainWindow):
                  f"sfx={getattr(self, '_wd_sfx', 0.0):.2f} "
                  f"render={getattr(self, '_wd_refresh', 0.0):.2f}) "
                  f"buf={self._buf_len()} src={type(self.engine.source).__name__}")
+
+    def _update_telop(self, active: bool, want_ms: int) -> None:
+        """Refresh the focus/fps telop. target = the render rate we asked for (60 when
+        focused, ~18 when not); actual = the measured rate. FOCUS with actual well below
+        target ⇒ real processing lag; NO FOCUS ⇒ the deliberate throttle."""
+        tl = getattr(self, "_telop", None)
+        if tl is None or not tl.isVisible():
+            return
+        tgt = round(1000 / want_ms)
+        act = round(getattr(self, "_fps_ema", 0.0))
+        if active:
+            tl.setText(f"● FOCUS   目標 {tgt} / 実測 {act} fps")
+        else:
+            tl.setText(f"○ NO FOCUS（描画抑制）  目標 {tgt} / 実測 {act} fps")
+        if active is not self._telop_active:          # recolour only on a state change
+            self._telop_active = active
+            tl.setStyleSheet(_TELOP_CSS % ("#7ddc8f" if active else "#ffcf6b"))
+        tl.adjustSize()
 
     def _buf_len(self) -> int:
         """Approx queued-sample count of the current source (BioRadio), for the watchdog."""
@@ -258,6 +300,7 @@ class MainWindow(QtWidgets.QMainWindow):
         QtCore.Qt.Key.Key_S: "S",
         QtCore.Qt.Key.Key_C: "C",
         QtCore.Qt.Key.Key_P: "P",
+        QtCore.Qt.Key.Key_O: "O",
     }
 
     def eventFilter(self, obj, event) -> bool:
@@ -293,6 +336,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.engine.notify_user_input()
         elif k == "P":
             self.engine.reset_pose()      # re-home the arm (recover a flipped pose)
+        elif k == "O":
+            self._telop.setVisible(not self._telop.isVisible())   # toggle the focus/fps telop
 
     def _start_baseline(self) -> None:
         self.engine.start_baseline()
